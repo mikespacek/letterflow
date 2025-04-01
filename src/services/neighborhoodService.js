@@ -123,20 +123,41 @@ export const getNeighborhoodById = async (id) => {
  * @param {Object} data Neighborhood data
  * @returns {Promise<Object>} Created neighborhood
  */
-export const createNeighborhood = async (data) => {
-  // In a real app, this would be an API call
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newNeighborhood = {
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        ...data
-      };
-      
-      // In a real app, this would update the database
-      resolve(newNeighborhood);
-    }, 700);
-  });
+export const createNeighborhood = async (neighborhoodData) => {
+  try {
+    // Map backend categories to frontend categories if necessary
+    if (neighborhoodData.properties && Array.isArray(neighborhoodData.properties)) {
+      neighborhoodData.properties = neighborhoodData.properties.map(property => {
+        // If ownerType is from backend format (owner, renter, investor), convert it
+        if (property.ownerType === 'owner') {
+          return { ...property, ownerType: 'Owner-Occupied' };
+        } else if (property.ownerType === 'renter') {
+          return { ...property, ownerType: 'Renter' };
+        } else if (property.ownerType === 'investor') {
+          return { ...property, ownerType: 'Investor' };
+        }
+        return property;
+      });
+    }
+    
+    const response = await fetch('/api/neighborhoods', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(neighborhoodData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create neighborhood');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating neighborhood:', error);
+    throw error;
+  }
 };
 
 /**

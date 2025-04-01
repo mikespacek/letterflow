@@ -231,89 +231,143 @@ def categorize_property(row, all_data=None):
     category = "unknown"
     confidence = 0.3
     
-    # Extract property and mailing addresses, handling different column naming conventions
+    # First, check for explicit "Owner Occupied" column with Yes/No values
+    # This is the most reliable way to categorize (based on the VBA script)
+    owner_occupied_cols = [
+        'owner occupied', 'owner_occupied', 'owneroccupied', 'occupied'
+    ]
+    
+    owner_occupied_value = None
+    for col in owner_occupied_cols:
+        if col in row and row[col] is not None:
+            val = str(row[col]).strip().lower()
+            if val in ['yes', 'no', 'true', 'false', '1', '0', 'y', 'n']:
+                owner_occupied_value = val
+                break
+    
+    # If we found an explicit Owner Occupied value
+    if owner_occupied_value is not None:
+        # Check if it's marked as Yes
+        if owner_occupied_value in ['yes', 'true', '1', 'y']:
+            category = "owner"
+            confidence = 0.95
+            return {"category": category, "confidence": confidence}
+        
+        # If explicitly marked No, it's either investor or renter
+        elif owner_occupied_value in ['no', 'false', '0', 'n']:
+            # Now we need to determine if it's investor or renter based on name
+            owner_name = ""
+            
+            # Common column names for owner name
+            owner_name_cols = [
+                'mail owner name', 'owner name', 'taxpayer name', 'owner', 'taxpayer', 'name', 'grantee'
+            ]
+            
+            # Find the owner name
+            for col in owner_name_cols:
+                if col in row and row[col]:
+                    owner_name = str(row[col]).strip()
+                    break
+            
+            # Check if it's a business entity (investor)
+            if owner_name:
+                business_indicators = [
+                    'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
+                    'investments', 'associates', 'rentals', 'management', 'company',
+                    'partners', 'holdings', 'group', 'enterprise', 'services'
+                ]
+                
+                lower_name = owner_name.lower()
+                if any(indicator in lower_name for indicator in business_indicators):
+                    category = "investor"
+                    confidence = 0.9
+                else:
+                    # For now, assume all non-owner-occupied residential properties that aren't businesses 
+                    # are renter-occupied (following the VBA script logic)
+                    category = "renter"
+                    confidence = 0.8
+                
+                return {"category": category, "confidence": confidence}
+    
+    # If there's no explicit Owner Occupied field, fall back to address comparison
     property_address = ""
     mailing_address = ""
-    owner_name = ""
     
     # Common column names for property address
     property_address_cols = [
-        'property_address', 'property_addr', 'situs_address', 'site_address', 
-        'address', 'prop_address'
+        'property address', 'property addr', 'situs address', 'site address', 
+        'address', 'prop address', 'location address'
     ]
     
     # Common column names for mailing address
     mailing_address_cols = [
-        'mailing_address', 'mail_address', 'owner_address', 'taxpayer_address',
-        'tax_address', 'mail_addr'
-    ]
-    
-    # Common column names for owner name
-    owner_name_cols = [
-        'owner_name', 'owner', 'taxpayer_name', 'taxpayer', 'name', 'grantee'
+        'mailing address', 'mail address', 'owner address', 'taxpayer address',
+        'tax address', 'mail addr', 'tax billing address'
     ]
     
     # Find the property address column
     for col in property_address_cols:
         if col in row and row[col]:
-            property_address = str(row[col])
+            property_address = str(row[col]).strip()
             break
     
     # Find the mailing address column
     for col in mailing_address_cols:
         if col in row and row[col]:
-            mailing_address = str(row[col])
+            mailing_address = str(row[col]).strip()
             break
     
-    # Find the owner name column
-    for col in owner_name_cols:
-        if col in row and row[col]:
-            owner_name = str(row[col])
-            break
+    # If we have both addresses, compare them
+    if property_address and mailing_address:
+        if addresses_match(property_address, mailing_address):
+            category = "owner"
+            confidence = 0.85
+            return {"category": category, "confidence": confidence}
     
-    # If we don't have both addresses, we can't categorize confidently
-    if not property_address or not mailing_address:
-        return {"category": category, "confidence": confidence}
-    
-    # Check if property is owner-occupied (addresses match)
-    if addresses_match(property_address, mailing_address):
-        category = "owner"
-        confidence = 0.85
-        return {"category": category, "confidence": confidence}
-    
-    # Check if the property is investor-owned
-    is_investor = False
-    investor_confidence = 0.5
-    
-    # Check if owner name contains business indicators
-    business_indicators = [
-        'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
-        'investments', 'associates', 'rentals', 'management'
+    # If we get here, we couldn't determine from Owner Occupied field or address comparison
+    # Let's check owner name for business indicators again
+    owner_name = ""
+    owner_name_cols = [
+        'mail owner name', 'owner name', 'taxpayer name', 'owner', 'taxpayer', 'name', 'grantee'
     ]
     
+    for col in owner_name_cols:
+        if col in row and row[col]:
+            owner_name = str(row[col]).strip()
+            break
+    
     if owner_name:
+        business_indicators = [
+            'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
+            'investments', 'associates', 'rentals', 'management', 'company',
+            'partners', 'holdings', 'group', 'enterprise', 'services'
+        ]
+        
         lower_name = owner_name.lower()
         if any(indicator in lower_name for indicator in business_indicators):
-            is_investor = True
-            investor_confidence = 0.9
+            category = "investor"
+            confidence = 0.8
+            return {"category": category, "confidence": confidence}
     
-    # Check for multiple properties with the same owner
+    # If still unknown, check if there are multiple properties with same owner
     if all_data is not None and owner_name:
         # Count properties with the same owner name
-        owner_properties = sum(1 for i, row_data in all_data.iterrows() 
-                            if any(row_data[col] == owner_name for col in owner_name_cols if col in row_data))
+        owner_properties = 0
+        for _, data_row in all_data.iterrows():
+            for col in owner_name_cols:
+                if col in data_row and data_row[col] == owner_name:
+                    owner_properties += 1
+                    break
         
         if owner_properties > 1:
-            is_investor = True
-            investor_confidence = 0.8 + min(0.1, (owner_properties - 1) * 0.02)  # Increase confidence with more properties
+            category = "investor"
+            confidence = 0.7 + min(0.2, (owner_properties - 1) * 0.05)  # Increase confidence with more properties
+            return {"category": category, "confidence": confidence}
     
-    # If no investor indicators, it's likely renter-occupied
-    if is_investor:
-        category = "investor"
-        confidence = investor_confidence
-    else:
-        category = "renter"
-        confidence = 0.7
+    # If we still don't know, default to most common scenario
+    if category == "unknown":
+        category = "renter"  # Default to renter if we can't determine
+        confidence = 0.6
     
     return {"category": category, "confidence": confidence}
 
@@ -323,12 +377,51 @@ def process_csv(file_content, filename):
         # Detect delimiter
         delimiter = detect_delimiter(file_content)
         
-        # Read CSV
+        # Read CSV - strip whitespace and convert column names to lowercase for easier matching
         df = pd.read_csv(io.StringIO(file_content.decode('utf-8', errors='ignore')), 
-                         delimiter=delimiter, low_memory=False)
+                         delimiter=delimiter, low_memory=False, 
+                         skipinitialspace=True)
         
-        # Convert column names to lowercase
-        df.columns = [col.lower() for col in df.columns]
+        # Convert column names to lowercase for case-insensitive comparison
+        df.columns = [str(col).lower().strip() for col in df.columns]
+        
+        # Check for owner occupied column and standardize values
+        owner_occupied_cols = ['owner occupied', 'owner_occupied', 'owneroccupied', 'occupied']
+        found_oo_col = None
+        
+        for col in owner_occupied_cols:
+            if col in df.columns:
+                found_oo_col = col
+                # Standardize Yes/No values
+                df[col] = df[col].apply(lambda x: 
+                    'Yes' if str(x).lower().strip() in ['yes', 'true', '1', 'y'] 
+                    else ('No' if str(x).lower().strip() in ['no', 'false', '0', 'n'] else x)
+                )
+                break
+        
+        # If owner occupied column not found, create it based on address comparison
+        if found_oo_col is None:
+            # Find property address and mailing address columns
+            prop_addr_col = None
+            mail_addr_col = None
+            
+            for col in df.columns:
+                if any(term in col for term in ['property addr', 'situs addr', 'site addr', 'location addr']):
+                    prop_addr_col = col
+                    break
+            
+            for col in df.columns:
+                if any(term in col for term in ['mailing addr', 'mail addr', 'owner addr', 'taxpayer addr']):
+                    mail_addr_col = col
+                    break
+            
+            if prop_addr_col and mail_addr_col:
+                # Create new column for owner occupied based on address comparison
+                df['owner occupied'] = df.apply(lambda row: 
+                    'Yes' if addresses_match(str(row[prop_addr_col]), str(row[mail_addr_col])) else 'No', 
+                    axis=1
+                )
+                found_oo_col = 'owner occupied'
         
         # Create processed data with categorization
         processed_data = []
@@ -345,7 +438,7 @@ def process_csv(file_content, filename):
             
             # Parse owner name
             name_parsed = {}
-            for name_col in ['owner_name', 'owner', 'taxpayer_name', 'taxpayer', 'name', 'grantee']:
+            for name_col in ['mail owner name', 'owner name', 'taxpayer name', 'owner', 'taxpayer', 'name', 'grantee']:
                 if name_col in row_dict and row_dict[name_col]:
                     name_parsed = parse_name(str(row_dict[name_col]))
                     break
