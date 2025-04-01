@@ -19,10 +19,13 @@ export default function LoginPage() {
     // In a real app, this would call your authentication API
     // For demo purposes, we'll just simulate a delay and redirect
     setTimeout(() => {
+      // Save auth token
+      localStorage.setItem('auth_token', 'demo_token_' + Date.now());
+      
       setIsSubmitting(false);
       
-      // For demo, redirect to dashboard
-      window.location.href = '/';
+      // Redirect to dashboard
+      window.location.href = '/dashboard';
     }, 1500);
   };
 
