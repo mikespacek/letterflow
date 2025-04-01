@@ -19,6 +19,12 @@ export default function CSVProcessorPage() {
   const [allProperties, setAllProperties] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [processingDownload, setProcessingDownload] = useState(false);
+  const [dataProcessed, setDataProcessed] = useState(false);
+  const [propertyCountsByType, setPropertyCountsByType] = useState({
+    ownerOccupied: 0,
+    investor: 0,
+    renter: 0
+  });
 
   const fileInputRef = useRef(null);
 
@@ -39,6 +45,8 @@ export default function CSVProcessorPage() {
 
   const processCSV = async (file) => {
     setLoading(true);
+    setDataProcessed(false);
+    setError('');
     
     try {
       const text = await file.text();
@@ -63,7 +71,12 @@ export default function CSVProcessorPage() {
       setHeaders(cleanHeaders);
       
       // Process all rows to properties
-      const properties = rows.slice(1).map(row => {
+      const properties = [];
+      
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row.trim()) continue; // Skip empty rows
+        
         const rowData = row.split(',');
         const propertyData = {};
         
@@ -77,9 +90,6 @@ export default function CSVProcessorPage() {
           propertyData[header] = value;
         });
         
-        // Debug: Log property data to console to see what we're working with
-        console.log('Property data:', propertyData);
-        
         // Determine owner type based on data
         let ownerType = 'Owner-Occupied';
         
@@ -92,6 +102,7 @@ export default function CSVProcessorPage() {
         
         // Helper function to check if an owner name indicates a business
         const isBusinessOwner = (ownerName) => {
+          if (!ownerName) return false;
           const lowerName = ownerName.toLowerCase();
           return businessIndicators.some(indicator => lowerName.includes(indicator));
         };
@@ -167,13 +178,33 @@ export default function CSVProcessorPage() {
           }
         }
         
-        return {
-          ...propertyData,
-          ownerType
-        };
-      }).filter(row => Object.values(row).some(val => val)); // Filter out empty rows
+        // Only add valid properties to our array
+        if (Object.values(propertyData).some(val => val)) {
+          properties.push({
+            ...propertyData,
+            ownerType
+          });
+        }
+      }
       
-      console.log('Processed properties:', properties);
+      // Count properties by type
+      const ownerOccupiedCount = properties.filter(p => p.ownerType === 'Owner-Occupied').length;
+      const investorCount = properties.filter(p => p.ownerType === 'Investor').length;
+      const renterCount = properties.filter(p => p.ownerType === 'Renter').length;
+      
+      console.log('Property counts:', {
+        total: properties.length,
+        ownerOccupied: ownerOccupiedCount,
+        investor: investorCount,
+        renter: renterCount
+      });
+      
+      setPropertyCountsByType({
+        ownerOccupied: ownerOccupiedCount,
+        investor: investorCount,
+        renter: renterCount
+      });
+      
       setAllProperties(properties);
       
       // Generate preview with 10 rows max
@@ -183,11 +214,13 @@ export default function CSVProcessorPage() {
       const defaultName = file.name.replace('.csv', '').replace(/[_-]/g, ' ');
       setNeighborhoodName(defaultName);
       
+      setDataProcessed(true);
       setLoading(false);
     } catch (err) {
       console.error('CSV processing error:', err);
       setError('Error processing CSV file: ' + err.message);
       setLoading(false);
+      setDataProcessed(false);
     }
   };
 
@@ -378,8 +411,21 @@ export default function CSVProcessorPage() {
             </div>
           ) : (
             <div>
-              {/* Filter and Download Section */}
-              {allProperties.length > 0 && (
+              {/* Loading State */}
+              {loading && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 p-10 text-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    Processing CSV Data
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Please wait while we analyze and categorize your property data...
+                  </p>
+                </div>
+              )}
+              
+              {/* Filter and Download Section - Only show if data is processed */}
+              {dataProcessed && allProperties.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 p-6">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
@@ -406,7 +452,7 @@ export default function CSVProcessorPage() {
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >
-                          Owner Occupied ({allProperties.filter(p => p.ownerType === 'Owner-Occupied').length})
+                          Owner Occupied ({propertyCountsByType.ownerOccupied})
                         </button>
                         <button
                           onClick={() => filterProperties('Investor')}
@@ -416,7 +462,7 @@ export default function CSVProcessorPage() {
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >
-                          Investor ({allProperties.filter(p => p.ownerType === 'Investor').length})
+                          Investor ({propertyCountsByType.investor})
                         </button>
                         <button
                           onClick={() => filterProperties('Renter')}
@@ -426,7 +472,7 @@ export default function CSVProcessorPage() {
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                           }`}
                         >
-                          Renter ({allProperties.filter(p => p.ownerType === 'Renter').length})
+                          Renter ({propertyCountsByType.renter})
                         </button>
                       </div>
                     </div>
@@ -456,131 +502,136 @@ export default function CSVProcessorPage() {
                 </div>
               )}
               
-              {/* Preview Section */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 overflow-hidden">
-                <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
-                      <Table className="h-5 w-5 mr-2 text-blue-600" /> 
-                      Data Preview
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      {file.name} • {preview.length} rows previewed {activeFilter !== 'all' ? `(filtered to ${activeFilter})` : ''}
-                    </p>
+              {/* Preview Section - Only show if data is processed */}
+              {dataProcessed && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 overflow-hidden">
+                  <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                        <Table className="h-5 w-5 mr-2 text-blue-600" /> 
+                        Data Preview
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        {file.name} • {preview.length} rows previewed {activeFilter !== 'all' ? `(filtered to ${activeFilter})` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setFile(null);
+                        setPreview([]);
+                        setHeaders([]);
+                        setSaveSuccess(false);
+                        setAllProperties([]);
+                        setDataProcessed(false);
+                      }}
+                      className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      Change File
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      setFile(null);
-                      setPreview([]);
-                      setHeaders([]);
-                      setSaveSuccess(false);
-                      setAllProperties([]);
-                    }}
-                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Change File
-                  </button>
-                </div>
-                
-                <div className="overflow-x-auto max-h-96">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        {headers.map((header, index) => (
-                          <th 
-                            key={index} 
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                          >
-                            {header}
-                          </th>
-                        ))}
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          Owner Type
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {preview.map((row, rowIndex) => (
-                        <tr key={rowIndex} className="hover:bg-gray-50 dark:hover:bg-gray-750">
-                          {headers.map((header, cellIndex) => (
-                            <td 
-                              key={cellIndex} 
-                              className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"
-                            >
-                              {row[header] || '-'}
-                            </td>
-                          ))}
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium 
-                              ${row.ownerType === 'Owner-Occupied' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
-                                row.ownerType === 'Investor' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' : 
-                                'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
-                              {row.ownerType}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              
-              {/* Save as Neighborhood Section */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <Home className="h-5 w-5 mr-2 text-blue-600" /> 
-                  Save as Neighborhood
-                </h2>
-                
-                <div className="mb-4">
-                  <label htmlFor="neighborhood-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Neighborhood Name
-                  </label>
-                  <input
-                    type="text"
-                    id="neighborhood-name"
-                    value={neighborhoodName}
-                    onChange={(e) => setNeighborhoodName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Enter neighborhood name"
-                  />
-                </div>
-                
-                <div className="flex items-center">
-                  <button
-                    onClick={saveAsNeighborhood}
-                    disabled={loading || isSaving || saveSuccess}
-                    className={`px-4 py-2 rounded-md text-white flex items-center ${
-                      loading || isSaving || saveSuccess
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    } transition-colors`}
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Saving...
-                      </>
-                    ) : saveSuccess ? (
-                      <>
-                        <Check className="h-4 w-4 mr-2" />
-                        Saved Successfully
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save as Neighborhood
-                      </>
-                    )}
-                  </button>
                   
-                  {saveSuccess && (
-                    <span className="ml-4 text-sm text-green-600 dark:text-green-400">
-                      Redirecting to neighborhoods page...
-                    </span>
-                  )}
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                          {headers.map((header, index) => (
+                            <th 
+                              key={index} 
+                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                            >
+                              {header}
+                            </th>
+                          ))}
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Owner Type
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {preview.map((row, rowIndex) => (
+                          <tr key={rowIndex} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                            {headers.map((header, cellIndex) => (
+                              <td 
+                                key={cellIndex} 
+                                className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"
+                              >
+                                {row[header] || '-'}
+                              </td>
+                            ))}
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium 
+                                ${row.ownerType === 'Owner-Occupied' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                                  row.ownerType === 'Investor' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' : 
+                                  'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                                {row.ownerType}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
+              
+              {/* Save as Neighborhood Section - Only show if data is processed */}
+              {dataProcessed && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <Home className="h-5 w-5 mr-2 text-blue-600" /> 
+                    Save as Neighborhood
+                  </h2>
+                  
+                  <div className="mb-4">
+                    <label htmlFor="neighborhood-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Neighborhood Name
+                    </label>
+                    <input
+                      type="text"
+                      id="neighborhood-name"
+                      value={neighborhoodName}
+                      onChange={(e) => setNeighborhoodName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Enter neighborhood name"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <button
+                      onClick={saveAsNeighborhood}
+                      disabled={loading || isSaving || saveSuccess}
+                      className={`px-4 py-2 rounded-md text-white flex items-center ${
+                        loading || isSaving || saveSuccess
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      } transition-colors`}
+                    >
+                      {isSaving ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : saveSuccess ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Saved Successfully
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save as Neighborhood
+                        </>
+                      )}
+                    </button>
+                    
+                    {saveSuccess && (
+                      <span className="ml-4 text-sm text-green-600 dark:text-green-400">
+                        Redirecting to neighborhoods page...
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               
               {error && (
                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
