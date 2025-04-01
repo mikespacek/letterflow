@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Upload, Check, AlertCircle, Table, Save, Home, MapPin, Download, Filter } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import { createNeighborhood } from '@/services/neighborhoodService';
+import { Button } from '@/components/ui/button';
 
 export default function CSVProcessorPage() {
   const router = useRouter();
@@ -50,15 +51,60 @@ export default function CSVProcessorPage() {
     
     try {
       const text = await file.text();
-      const rows = text.split('\n');
+      
+      // First handle the parsing of CSV with quotes correctly
+      let rows = [];
+      let currentRow = [];
+      let currentCell = '';
+      let inQuotes = false;
+      
+      // More robust CSV parsing that handles quotes properly
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        
+        if (char === '"') {
+          // Toggle quote mode
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          // End of cell
+          currentRow.push(currentCell.trim());
+          currentCell = '';
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+          // End of row
+          if (char === '\r' && i + 1 < text.length && text[i + 1] === '\n') {
+            // Skip the \n in \r\n
+            i++;
+          }
+          
+          // Add the last cell in the row
+          if (currentCell || currentRow.length > 0) {
+            currentRow.push(currentCell.trim());
+            if (currentRow.some(cell => cell)) { // Only add non-empty rows
+              rows.push([...currentRow]);
+            }
+            currentRow = [];
+            currentCell = '';
+          }
+        } else {
+          // Regular character
+          currentCell += char;
+        }
+      }
+      
+      // Add any remaining data
+      if (currentCell || currentRow.length > 0) {
+        currentRow.push(currentCell.trim());
+        if (currentRow.some(cell => cell)) { // Only add non-empty rows
+          rows.push([...currentRow]);
+        }
+      }
       
       if (rows.length < 2) {
         throw new Error('CSV file is empty or invalid');
       }
       
-      // Process headers - assume first row is headers
-      // Fix header names by removing quotes if present
-      const headerRow = rows[0].split(',');
+      // Clean headers - remove quotes and trim
+      const headerRow = rows[0];
       const cleanHeaders = headerRow.map(h => {
         let header = h.trim();
         // Remove quotes if they exist
@@ -68,16 +114,16 @@ export default function CSVProcessorPage() {
         return header;
       });
       
+      console.log('Headers:', cleanHeaders);
       setHeaders(cleanHeaders);
       
       // Process all rows to properties
       const properties = [];
       
       for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row.trim()) continue; // Skip empty rows
+        if (!rows[i].some(cell => cell.trim())) continue; // Skip empty rows
         
-        const rowData = row.split(',');
+        const rowData = rows[i];
         const propertyData = {};
         
         // Map each value to its corresponding clean header
@@ -90,90 +136,180 @@ export default function CSVProcessorPage() {
           propertyData[header] = value;
         });
         
+        console.log('Row data:', propertyData);
+        
         // Determine owner type based on data
-        let ownerType = 'Owner-Occupied';
+        let ownerType = 'Owner-Occupied'; // Default to owner-occupied
         
-        // Business indicators to identify investors
-        const businessIndicators = [
-          'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
-          'investments', 'associates', 'rentals', 'management', 'company',
-          'partners', 'holdings', 'group', 'enterprise', 'services'
-        ];
+        // Check for explicit "OWNER OCCUPIED" column or variant with case insensitivity
+        const ownerOccupiedColumn = cleanHeaders.find(header => 
+          header.toUpperCase() === 'OWNER OCCUPIED' || 
+          header.toUpperCase() === 'OWNER_OCCUPIED' || 
+          header.toUpperCase() === 'OWNEROCCUPIED'
+        );
         
-        // Helper function to check if an owner name indicates a business
-        const isBusinessOwner = (ownerName) => {
-          if (!ownerName) return false;
-          const lowerName = ownerName.toLowerCase();
-          return businessIndicators.some(indicator => lowerName.includes(indicator));
-        };
-        
-        // First check for explicit "OWNER OCCUPIED" column
-        const ownerOccupiedField = 
-          propertyData['OWNER OCCUPIED'] !== undefined ? 'OWNER OCCUPIED' :
-          propertyData['OWNER_OCCUPIED'] !== undefined ? 'OWNER_OCCUPIED' :
-          propertyData['owner_occupied'] !== undefined ? 'owner_occupied' : null;
-        
-        if (ownerOccupiedField && 
-            (propertyData[ownerOccupiedField].toLowerCase() === 'no' || 
-             propertyData[ownerOccupiedField] === 'false')) {
-          // If owner occupied is explicitly marked as "No", check if it's an investor or renter
+        if (ownerOccupiedColumn) {
+          console.log('Found owner occupied column:', ownerOccupiedColumn, 'Value:', propertyData[ownerOccupiedColumn]);
           
-          // Check for business indicators in owner name to identify investors
-          const ownerName = propertyData['MAIL OWNER NAME'] || 
-                           propertyData['OWNER NAME'] || 
-                           propertyData['TAXPAYER NAME'] || 
-                           propertyData['OWNER'] || '';
-          
-          if (isBusinessOwner(ownerName)) {
-            ownerType = 'Investor';
-          } else {
-            ownerType = 'Renter';
-          }
-        } else if (!ownerOccupiedField) {
-          // If no explicit owner occupied field, compare mailing and property addresses
-          
-          // Look for property address
-          const propertyAddress = propertyData['PROPERTY ADDRESS'] || 
-                                 propertyData['SITUS ADDRESS'] || 
-                                 propertyData['SITE ADDRESS'] || 
-                                 propertyData['ADDRESS'] || '';
-          
-          // Look for mailing address
-          const mailingAddress = propertyData['MAILING ADDRESS'] || 
-                                propertyData['TAX BILLING ADDRESS'] || 
-                                propertyData['MAIL ADDRESS'] || 
-                                propertyData['TAXPAYER ADDRESS'] || '';
-          
-          // Simple address comparison - normalize and check if one contains the other
-          const normalizeAddress = (addr) => {
-            if (!addr) return '';
-            // Remove common suffixes, punctuation, and convert to lowercase
-            return addr.toLowerCase()
-              .replace(/\b(street|avenue|boulevard|drive|court|lane|road|place|way|circle|terrace|parkway)\b/g, '')
-              .replace(/\b(st|ave|blvd|dr|ct|ln|rd|pl|wy|cir|ter|pkwy)\b\.?/g, '')
-              .replace(/[^\w\s]/g, '')
-              .replace(/\s+/g, ' ')
-              .trim();
-          };
-          
-          const normPropertyAddr = normalizeAddress(propertyAddress);
-          const normMailingAddr = normalizeAddress(mailingAddress);
-          
-          // If we have both addresses and they don't match, it's not owner-occupied
-          if (normPropertyAddr && normMailingAddr && 
-              !normPropertyAddr.includes(normMailingAddr) && 
-              !normMailingAddr.includes(normPropertyAddr)) {
+          const ownerOccupiedValue = propertyData[ownerOccupiedColumn];
+          // Check if the value indicates "No" or similar
+          if (ownerOccupiedValue && 
+              (ownerOccupiedValue.toLowerCase() === 'no' || 
+               ownerOccupiedValue.toLowerCase() === 'false' || 
+               ownerOccupiedValue === '0' ||
+               ownerOccupiedValue.toLowerCase() === 'n')) {
             
-            // Check owner name for business indicators to determine if investor or renter
-            const ownerName = propertyData['MAIL OWNER NAME'] || 
-                             propertyData['OWNER NAME'] || 
-                             propertyData['TAXPAYER NAME'] || 
-                             propertyData['OWNER'] || '';
+            // It's not owner-occupied, so check if it's an investor or renter
+            const mailOwnerColumn = cleanHeaders.find(header => 
+              header.toUpperCase().includes('MAIL OWNER') || 
+              header.toUpperCase().includes('OWNER NAME')
+            );
             
-            if (isBusinessOwner(ownerName)) {
-              ownerType = 'Investor';
+            if (mailOwnerColumn && propertyData[mailOwnerColumn]) {
+              // Business indicators to identify investors
+              const businessIndicators = [
+                'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
+                'investments', 'associates', 'rentals', 'management', 'company',
+                'partners', 'holdings', 'group', 'enterprise', 'services'
+              ];
+              
+              const ownerName = propertyData[mailOwnerColumn].toLowerCase();
+              const isBusinessOwner = businessIndicators.some(indicator => ownerName.includes(indicator));
+              
+              if (isBusinessOwner) {
+                ownerType = 'Investor';
+                console.log('Classified as Investor based on business name:', ownerName);
+              } else {
+                // In real estate, if it's not owner-occupied and not a business/investor, it's typically a renter
+                ownerType = 'Renter';
+                console.log('Classified as Renter (not owner-occupied, not business name)');
+              }
             } else {
+              // Default to renter if we can't determine investor status
               ownerType = 'Renter';
+              console.log('Defaulting to Renter (not owner-occupied, no owner name found)');
+            }
+          } else {
+            // Explicitly marked as owner-occupied
+            ownerType = 'Owner-Occupied';
+            console.log('Classified as Owner-Occupied based on owner occupied field value');
+          }
+        } else {
+          // No explicit owner occupied column, try to infer from address comparison
+          console.log('No owner occupied column found, comparing addresses...');
+          
+          // Look for property address and mailing address columns
+          const propertyAddrColumns = cleanHeaders.filter(header => 
+            header.toUpperCase().includes('PROPERTY') || 
+            header.toUpperCase().includes('SITUS') || 
+            header.toUpperCase() === 'ADDRESS'
+          );
+          
+          const mailingAddrColumns = cleanHeaders.filter(header => 
+            header.toUpperCase().includes('MAILING') || 
+            header.toUpperCase().includes('TAX BILLING') || 
+            header.toUpperCase().includes('MAIL ADDR')
+          );
+          
+          // Get the addresses if columns are found
+          let propertyAddr = '';
+          let mailingAddr = '';
+          
+          if (propertyAddrColumns.length > 0) {
+            propertyAddr = propertyData[propertyAddrColumns[0]] || '';
+          }
+          
+          if (mailingAddrColumns.length > 0) {
+            mailingAddr = propertyData[mailingAddrColumns[0]] || '';
+          }
+          
+          if (propertyAddr && mailingAddr) {
+            // Simple address comparison - normalize and check if addresses match
+            const normalizeAddress = (addr) => {
+              if (!addr) return '';
+              // Convert to lowercase and remove common suffixes, punctuation, etc.
+              return addr.toLowerCase()
+                .replace(/\b(street|avenue|boulevard|drive|court|lane|road|place|way|circle|terrace|parkway)\b/g, '')
+                .replace(/\b(st|ave|blvd|dr|ct|ln|rd|pl|wy|cir|ter|pkwy)\b\.?/g, '')
+                .replace(/[^\w\s]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            };
+            
+            const normPropertyAddr = normalizeAddress(propertyAddr);
+            const normMailingAddr = normalizeAddress(mailingAddr);
+            
+            console.log('Comparing addresses:', 
+                        'Property:', propertyAddr, '(normalized:', normPropertyAddr, ')',
+                        'Mailing:', mailingAddr, '(normalized:', normMailingAddr, ')');
+            
+            // Check if addresses match (one contains the other)
+            if (normPropertyAddr && normMailingAddr &&
+                (normPropertyAddr.includes(normMailingAddr) || 
+                 normMailingAddr.includes(normPropertyAddr))) {
+              // Addresses match, likely owner-occupied
+              ownerType = 'Owner-Occupied';
+              console.log('Classified as Owner-Occupied based on matching addresses');
+            } else {
+              // Addresses don't match, likely not owner-occupied
+              // Check if it's an investor or renter
+              const mailOwnerColumn = cleanHeaders.find(header => 
+                header.toUpperCase().includes('MAIL OWNER') || 
+                header.toUpperCase().includes('OWNER NAME')
+              );
+              
+              if (mailOwnerColumn && propertyData[mailOwnerColumn]) {
+                // Business indicators to identify investors
+                const businessIndicators = [
+                  'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
+                  'investments', 'associates', 'rentals', 'management', 'company',
+                  'partners', 'holdings', 'group', 'enterprise', 'services'
+                ];
+                
+                const ownerName = propertyData[mailOwnerColumn].toLowerCase();
+                const isBusinessOwner = businessIndicators.some(indicator => ownerName.includes(indicator));
+                
+                if (isBusinessOwner) {
+                  ownerType = 'Investor';
+                  console.log('Classified as Investor based on business name:', ownerName);
+                } else {
+                  ownerType = 'Renter';
+                  console.log('Classified as Renter (addresses don\'t match, not a business name)');
+                }
+              } else {
+                // Default to renter if we can't determine investor status
+                ownerType = 'Renter';
+                console.log('Defaulting to Renter (addresses don\'t match, no owner name found)');
+              }
+            }
+          } else {
+            // Can't determine from addresses, check owner type based on name
+            console.log('Could not find both property and mailing addresses, using owner name...');
+            
+            const mailOwnerColumn = cleanHeaders.find(header => 
+              header.toUpperCase().includes('MAIL OWNER') || 
+              header.toUpperCase().includes('OWNER NAME')
+            );
+            
+            if (mailOwnerColumn && propertyData[mailOwnerColumn]) {
+              // Business indicators to identify investors
+              const businessIndicators = [
+                'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
+                'investments', 'associates', 'rentals', 'management', 'company',
+                'partners', 'holdings', 'group', 'enterprise', 'services'
+              ];
+              
+              const ownerName = propertyData[mailOwnerColumn].toLowerCase();
+              const isBusinessOwner = businessIndicators.some(indicator => ownerName.includes(indicator));
+              
+              if (isBusinessOwner) {
+                ownerType = 'Investor';
+                console.log('Classified as Investor based on business name:', ownerName);
+              } else {
+                // Default to owner-occupied if we can't determine from addresses and it's not a business
+                ownerType = 'Owner-Occupied';
+                console.log('Defaulting to Owner-Occupied (no address comparison, not a business)');
+              }
             }
           }
         }
@@ -192,7 +328,7 @@ export default function CSVProcessorPage() {
       const investorCount = properties.filter(p => p.ownerType === 'Investor').length;
       const renterCount = properties.filter(p => p.ownerType === 'Renter').length;
       
-      console.log('Property counts:', {
+      console.log('Final property counts:', {
         total: properties.length,
         ownerOccupied: ownerOccupiedCount,
         investor: investorCount,
@@ -310,58 +446,99 @@ export default function CSVProcessorPage() {
     }
   };
 
-  const filterProperties = (filterType) => {
-    setActiveFilter(filterType);
-    
-    if (filterType === 'all') {
-      setPreview(allProperties.slice(0, 10));
+  const filterProperties = (filter) => {
+    setActiveFilter(filter);
+    if (!allProperties || allProperties.length === 0) {
+      setPreview([]);
       return;
     }
+
+    let filtered = [];
     
-    const filtered = allProperties.filter(property => property.ownerType === filterType);
+    if (filter === 'all') {
+      filtered = allProperties;
+    } else if (filter === 'owner-occupied') {
+      filtered = allProperties.filter(p => p.ownerType === 'Owner-Occupied');
+    } else if (filter === 'investor') {
+      filtered = allProperties.filter(p => p.ownerType === 'Investor');
+    } else if (filter === 'renter') {
+      filtered = allProperties.filter(p => p.ownerType === 'Renter');
+    }
+    
+    // Update preview with at most 10 items
     setPreview(filtered.slice(0, 10));
   };
 
-  const downloadFilteredList = () => {
-    if (allProperties.length === 0) {
-      setError('No data to download');
+  const downloadFilteredList = async () => {
+    if (!allProperties || allProperties.length === 0) {
+      alert('No properties to download');
       return;
     }
     
     setProcessingDownload(true);
     
     try {
-      // Filter properties based on active filter
-      let dataToDownload = allProperties;
-      let fileName = `${neighborhoodName || 'properties'}_all.csv`;
+      // Filter the properties based on the activeFilter
+      let dataToDownload = [];
       
-      if (activeFilter !== 'all') {
-        dataToDownload = allProperties.filter(property => property.ownerType === activeFilter);
-        fileName = `${neighborhoodName || 'properties'}_${activeFilter.toLowerCase()}.csv`;
+      if (activeFilter === 'all') {
+        dataToDownload = [...allProperties];
+      } else if (activeFilter === 'owner-occupied') {
+        dataToDownload = allProperties.filter(p => p.ownerType === 'Owner-Occupied');
+      } else if (activeFilter === 'investor') {
+        dataToDownload = allProperties.filter(p => p.ownerType === 'Investor');
+      } else if (activeFilter === 'renter') {
+        dataToDownload = allProperties.filter(p => p.ownerType === 'Renter');
       }
       
-      // Create CSV content
-      const csvContent = [
-        headers.join(','), // Headers row
-        ...dataToDownload.map(property => {
-          return headers.map(header => property[header] || '').join(',');
-        })
-      ].join('\n');
+      if (dataToDownload.length === 0) {
+        alert('No properties match the selected filter');
+        setProcessingDownload(false);
+        return;
+      }
       
-      // Create and download file
+      // Get all headers from the properties
+      const headers = Object.keys(dataToDownload[0]);
+      
+      // Create CSV content
+      let csvContent = headers.join(',') + '\n';
+      
+      dataToDownload.forEach(property => {
+        const row = headers.map(header => {
+          const value = property[header] || '';
+          // Escape quotes and wrap in quotes if the value contains a comma
+          return value.includes(',') ? `"${value.replace(/"/g, '""')}"` : value;
+        });
+        csvContent += row.join(',') + '\n';
+      });
+      
+      // Create a download link
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', fileName);
-      link.style.visibility = 'hidden';
+      
+      // Set filename based on the filter
+      let filename = '';
+      if (activeFilter === 'all') {
+        filename = 'all_properties.csv';
+      } else if (activeFilter === 'owner-occupied') {
+        filename = 'owner_occupied_properties.csv';
+      } else if (activeFilter === 'investor') {
+        filename = 'investor_properties.csv';
+      } else if (activeFilter === 'renter') {
+        filename = 'renter_properties.csv';
+      }
+      
+      link.href = url;
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      setProcessingDownload(false);
-    } catch (err) {
-      setError('Error downloading data: ' + err.message);
+    } catch (error) {
+      console.error('Error downloading CSV:', error);
+      alert('Error creating download. Please try again.');
+    } finally {
       setProcessingDownload(false);
     }
   };
@@ -424,80 +601,62 @@ export default function CSVProcessorPage() {
                 </div>
               )}
               
-              {/* Filter and Download Section - Only show if data is processed */}
-              {dataProcessed && allProperties.length > 0 && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 p-6">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-2">
-                        <Filter className="h-5 w-5 mr-2 text-blue-600" />
-                        Filter Properties
-                      </h2>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => filterProperties('all')}
-                          className={`px-3 py-1 rounded-md text-sm ${
-                            activeFilter === 'all'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          All ({allProperties.length})
-                        </button>
-                        <button
-                          onClick={() => filterProperties('Owner-Occupied')}
-                          className={`px-3 py-1 rounded-md text-sm ${
-                            activeFilter === 'Owner-Occupied'
-                              ? 'bg-green-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Owner Occupied ({propertyCountsByType.ownerOccupied})
-                        </button>
-                        <button
-                          onClick={() => filterProperties('Investor')}
-                          className={`px-3 py-1 rounded-md text-sm ${
-                            activeFilter === 'Investor'
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Investor ({propertyCountsByType.investor})
-                        </button>
-                        <button
-                          onClick={() => filterProperties('Renter')}
-                          className={`px-3 py-1 rounded-md text-sm ${
-                            activeFilter === 'Renter'
-                              ? 'bg-amber-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Renter ({propertyCountsByType.renter})
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <button
-                      onClick={downloadFilteredList}
-                      disabled={processingDownload}
-                      className={`px-4 py-2 rounded-md text-white flex items-center ${
-                        processingDownload
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
+              {/* Filter and Download Section */}
+              {dataProcessed && (
+                <div className="mt-6 mb-4">
+                  <h3 className="text-lg font-semibold mb-3">Property Filters</h3>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    <Button 
+                      variant={activeFilter === 'all' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => filterProperties('all')}
+                      className="flex items-center"
                     >
-                      {processingDownload ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="h-4 w-4 mr-2" />
-                          Download {activeFilter !== 'all' ? activeFilter : 'All'} Properties
-                        </>
-                      )}
-                    </button>
+                      <Filter className="mr-2 h-4 w-4" />
+                      All Properties ({allProperties?.length || 0})
+                    </Button>
+                    <Button 
+                      variant={activeFilter === 'owner-occupied' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => filterProperties('owner-occupied')}
+                      className="flex items-center"
+                    >
+                      <Filter className="mr-2 h-4 w-4" />
+                      Owner-Occupied ({propertyCountsByType?.ownerOccupied || 0})
+                    </Button>
+                    <Button 
+                      variant={activeFilter === 'investor' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => filterProperties('investor')}
+                      className="flex items-center"
+                    >
+                      <Filter className="mr-2 h-4 w-4" />
+                      Investor ({propertyCountsByType?.investor || 0})
+                    </Button>
+                    <Button 
+                      variant={activeFilter === 'renter' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => filterProperties('renter')}
+                      className="flex items-center"
+                    >
+                      <Filter className="mr-2 h-4 w-4" />
+                      Renter ({propertyCountsByType?.renter || 0})
+                    </Button>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => downloadFilteredList()}
+                      disabled={processingDownload || !allProperties || allProperties.length === 0}
+                      className="flex items-center"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {processingDownload ? 'Processing...' : `Download ${activeFilter === 'all' ? 'All' : 
+                        activeFilter === 'owner-occupied' ? 'Owner-Occupied' : 
+                        activeFilter === 'investor' ? 'Investor' : 'Renter'} List`}
+                    </Button>
                   </div>
                 </div>
               )}
