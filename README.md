@@ -1,125 +1,55 @@
-# Real Estate Letter Generator (Next.js Version)
+# LetterFlow
 
-A modern web application for processing real estate property data, categorizing properties, and generating personalized letters for property owners.
+A comprehensive application for real estate professionals to organize property data and generate personalized letters.
 
 ## Features
 
-- **Modern UI with Next.js & Tailwind CSS**
-  - Responsive design for all devices
-  - Dark mode support
-  - Interactive data visualizations
-  
-- **CSV Processing**
-  - Automatic delimiter detection
-  - Intelligent property categorization
-  - Name parsing for personalization
-  
-- **Property Categories**
-  - Owner-Occupied: Properties where the owner lives at the property
-  - Renter-Occupied: Properties where the owner doesn't live at the property
-  - Investor: Business entities or individuals who own multiple properties
-  - Vacant: Unoccupied properties
-  - Distressed: Properties facing financial or physical challenges
-  - Absentee: Properties owned by out-of-area owners
-  
-- **Smart Letter Generator**
-  - Category-specific templates
-  - Personalized variable replacement
-  - Bulk letter generation
-  
-- **Analytics Dashboard**
-  - Property category distribution charts
-  - Categorization confidence metrics
-  - Business entity insights
+- **CSV Data Processing**: Upload and process property data from CSV files
+- **Neighborhood Organization**: Organize properties into neighborhoods for targeted marketing
+- **Letter Generation**: Create personalized letters using customizable templates
+- **Template Management**: Create, edit, and save templates for future use
+- **Analytics Dashboard**: Track campaign performance and response rates
 
 ## Tech Stack
 
-- **Frontend**
-  - Next.js with App Router
-  - Tailwind CSS for styling
-  - React hooks for state management
-  - Chart.js for data visualization
-  
-- **Backend**
-  - FastAPI (Python)
-  - Pandas for data processing
-  - JSON for data storage
+- **Frontend**: Next.js, React, Tailwind CSS
+- **Backend**: Next.js API routes
+- **Database**: Prisma with SQLite (easily upgradable to PostgreSQL/MySQL)
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18.17 or later
-- Python 3.8 or later
-- pip (Python package installer)
-
-### Installation
-
-1. **Clone the repository**
+1. Clone the repository
    ```
-   git clone https://github.com/yourusername/re-letters-nextjs.git
-   cd re-letters-nextjs
+   git clone https://github.com/mikespacek/letterflow.git
+   cd letterflow
    ```
 
-2. **Install JavaScript dependencies**
+2. Install dependencies
    ```
    npm install
    ```
 
-3. **Install Python dependencies**
+3. Set up the database
    ```
-   cd backend
-   pip install -r requirements.txt
-   cd ..
+   npx prisma db push
+   npx prisma db seed
    ```
 
-### Development
+4. Start the development server
+   ```
+   npm run dev
+   ```
 
-Start both the frontend and backend servers:
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-```
-npm run dev:all
-```
+## Pricing Plans
 
-This will start:
-- Next.js development server on port 3000
-- FastAPI backend server on port 3006
+LetterFlow offers three pricing tiers:
 
-You can also run them separately:
-
-```
-# Frontend only
-npm run dev
-
-# Backend only
-npm run api:start
-```
-
-### Usage
-
-1. **Upload CSV Data**
-   - Navigate to the CSV Processor
-   - Upload your property data CSV
-   - Review the automatic categorization
-
-2. **Manage Templates**
-   - Create and edit letter templates for different property types
-   - Use variables like `{{first_name}}` and `{{property_address}}`
-
-3. **Generate Letters**
-   - Select processed data and template
-   - Generate personalized letters for all or specific categories
-   - Review and export
-
-4. **Analyze Data**
-   - View distribution of property types
-   - Analyze confidence levels of categorization
-   - Get insights about your property data
-
-## API Documentation
-
-API documentation is available at http://localhost:3006/docs when the server is running.
+- **Free**: For individuals just getting started
+- **Starter ($29/month)**: For growing real estate businesses
+- **Pro ($49/month)**: For professional investors and teams
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+[MIT](LICENSE) 
