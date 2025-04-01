@@ -44,6 +44,18 @@ export default function CSVProcessorPage() {
     processCSV(selectedFile);
   };
 
+  // Find the owner occupied column regardless of case
+  const findColumnByPattern = (headers, patterns) => {
+    for (const pattern of patterns) {
+      const foundColumn = headers.find(h => 
+        h.toUpperCase().replace(/\s+/g, ' ').trim() === pattern.toUpperCase() ||
+        h.toUpperCase().replace(/[\s_-]+/g, '') === pattern.toUpperCase().replace(/[\s_-]+/g, '')
+      );
+      if (foundColumn) return foundColumn;
+    }
+    return null;
+  };
+
   const processCSV = async (file) => {
     setLoading(true);
     setDataProcessed(false);
@@ -115,7 +127,21 @@ export default function CSVProcessorPage() {
       });
       
       console.log('Headers:', cleanHeaders);
+      
+      // Set headers in state for display
       setHeaders(cleanHeaders);
+      
+      // Find key columns by pattern matching
+      const ownerOccupiedColumn = findColumnByPattern(cleanHeaders, [
+        'OWNER OCCUPIED', 'OWNER_OCCUPIED', 'OWNEROCCUPIED'
+      ]);
+      
+      const mailOwnerNameColumn = findColumnByPattern(cleanHeaders, [
+        'MAIL OWNER NAME', 'OWNER NAME', 'MAILOWNERNAME', 'OWNER'
+      ]);
+      
+      console.log('Found Owner Occupied column:', ownerOccupiedColumn);
+      console.log('Found Mail Owner Name column:', mailOwnerNameColumn);
       
       // Process all rows to properties
       const properties = [];
@@ -141,180 +167,54 @@ export default function CSVProcessorPage() {
         // Determine owner type based on data
         let ownerType = 'Owner-Occupied'; // Default to owner-occupied
         
-        // Check for explicit "OWNER OCCUPIED" column or variant with case insensitivity
-        const ownerOccupiedColumn = cleanHeaders.find(header => 
-          header.toUpperCase() === 'OWNER OCCUPIED' || 
-          header.toUpperCase() === 'OWNER_OCCUPIED' || 
-          header.toUpperCase() === 'OWNEROCCUPIED'
-        );
-        
+        // Check if we found the Owner Occupied column
         if (ownerOccupiedColumn) {
-          console.log('Found owner occupied column:', ownerOccupiedColumn, 'Value:', propertyData[ownerOccupiedColumn]);
+          const ownerOccupiedValue = propertyData[ownerOccupiedColumn]?.trim();
+          console.log('Owner Occupied value:', ownerOccupiedValue);
           
-          const ownerOccupiedValue = propertyData[ownerOccupiedColumn];
-          // Check if the value indicates "No" or similar
+          // If it's explicitly marked as "No", determine if it's an investor or renter
           if (ownerOccupiedValue && 
               (ownerOccupiedValue.toLowerCase() === 'no' || 
                ownerOccupiedValue.toLowerCase() === 'false' || 
                ownerOccupiedValue === '0' ||
                ownerOccupiedValue.toLowerCase() === 'n')) {
             
-            // It's not owner-occupied, so check if it's an investor or renter
-            const mailOwnerColumn = cleanHeaders.find(header => 
-              header.toUpperCase().includes('MAIL OWNER') || 
-              header.toUpperCase().includes('OWNER NAME')
-            );
-            
-            if (mailOwnerColumn && propertyData[mailOwnerColumn]) {
+            // First check if it's a business entity
+            if (mailOwnerNameColumn && propertyData[mailOwnerNameColumn]) {
+              const ownerName = propertyData[mailOwnerNameColumn].toLowerCase();
+              
               // Business indicators to identify investors
               const businessIndicators = [
                 'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
                 'investments', 'associates', 'rentals', 'management', 'company',
-                'partners', 'holdings', 'group', 'enterprise', 'services'
+                'partners', 'holdings', 'group', 'enterprise', 'services', 'partnership'
               ];
               
-              const ownerName = propertyData[mailOwnerColumn].toLowerCase();
-              const isBusinessOwner = businessIndicators.some(indicator => ownerName.includes(indicator));
-              
-              if (isBusinessOwner) {
+              if (businessIndicators.some(indicator => ownerName.includes(indicator))) {
                 ownerType = 'Investor';
                 console.log('Classified as Investor based on business name:', ownerName);
               } else {
-                // In real estate, if it's not owner-occupied and not a business/investor, it's typically a renter
-                ownerType = 'Renter';
-                console.log('Classified as Renter (not owner-occupied, not business name)');
+                // For this CSV file format, all non-owner-occupied appear to be marked as investors
+                // This aligns with the VBA script where "No" in Owner Occupied is put on Investor sheet
+                ownerType = 'Investor';
+                console.log('Classified as Investor (not owner-occupied)');
               }
             } else {
-              // Default to renter if we can't determine investor status
-              ownerType = 'Renter';
-              console.log('Defaulting to Renter (not owner-occupied, no owner name found)');
+              // If we can't determine from owner name, default to Investor for "No" values
+              ownerType = 'Investor';
+              console.log('Defaulting to Investor (Owner Occupied = No)');
             }
           } else {
-            // Explicitly marked as owner-occupied
+            // If it's not "No", it's probably "Yes" or blank (which we assume is Owner-Occupied)
             ownerType = 'Owner-Occupied';
-            console.log('Classified as Owner-Occupied based on owner occupied field value');
+            console.log('Classified as Owner-Occupied');
           }
         } else {
-          // No explicit owner occupied column, try to infer from address comparison
-          console.log('No owner occupied column found, comparing addresses...');
-          
-          // Look for property address and mailing address columns
-          const propertyAddrColumns = cleanHeaders.filter(header => 
-            header.toUpperCase().includes('PROPERTY') || 
-            header.toUpperCase().includes('SITUS') || 
-            header.toUpperCase() === 'ADDRESS'
-          );
-          
-          const mailingAddrColumns = cleanHeaders.filter(header => 
-            header.toUpperCase().includes('MAILING') || 
-            header.toUpperCase().includes('TAX BILLING') || 
-            header.toUpperCase().includes('MAIL ADDR')
-          );
-          
-          // Get the addresses if columns are found
-          let propertyAddr = '';
-          let mailingAddr = '';
-          
-          if (propertyAddrColumns.length > 0) {
-            propertyAddr = propertyData[propertyAddrColumns[0]] || '';
-          }
-          
-          if (mailingAddrColumns.length > 0) {
-            mailingAddr = propertyData[mailingAddrColumns[0]] || '';
-          }
-          
-          if (propertyAddr && mailingAddr) {
-            // Simple address comparison - normalize and check if addresses match
-            const normalizeAddress = (addr) => {
-              if (!addr) return '';
-              // Convert to lowercase and remove common suffixes, punctuation, etc.
-              return addr.toLowerCase()
-                .replace(/\b(street|avenue|boulevard|drive|court|lane|road|place|way|circle|terrace|parkway)\b/g, '')
-                .replace(/\b(st|ave|blvd|dr|ct|ln|rd|pl|wy|cir|ter|pkwy)\b\.?/g, '')
-                .replace(/[^\w\s]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-            };
-            
-            const normPropertyAddr = normalizeAddress(propertyAddr);
-            const normMailingAddr = normalizeAddress(mailingAddr);
-            
-            console.log('Comparing addresses:', 
-                        'Property:', propertyAddr, '(normalized:', normPropertyAddr, ')',
-                        'Mailing:', mailingAddr, '(normalized:', normMailingAddr, ')');
-            
-            // Check if addresses match (one contains the other)
-            if (normPropertyAddr && normMailingAddr &&
-                (normPropertyAddr.includes(normMailingAddr) || 
-                 normMailingAddr.includes(normPropertyAddr))) {
-              // Addresses match, likely owner-occupied
-              ownerType = 'Owner-Occupied';
-              console.log('Classified as Owner-Occupied based on matching addresses');
-            } else {
-              // Addresses don't match, likely not owner-occupied
-              // Check if it's an investor or renter
-              const mailOwnerColumn = cleanHeaders.find(header => 
-                header.toUpperCase().includes('MAIL OWNER') || 
-                header.toUpperCase().includes('OWNER NAME')
-              );
-              
-              if (mailOwnerColumn && propertyData[mailOwnerColumn]) {
-                // Business indicators to identify investors
-                const businessIndicators = [
-                  'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
-                  'investments', 'associates', 'rentals', 'management', 'company',
-                  'partners', 'holdings', 'group', 'enterprise', 'services'
-                ];
-                
-                const ownerName = propertyData[mailOwnerColumn].toLowerCase();
-                const isBusinessOwner = businessIndicators.some(indicator => ownerName.includes(indicator));
-                
-                if (isBusinessOwner) {
-                  ownerType = 'Investor';
-                  console.log('Classified as Investor based on business name:', ownerName);
-                } else {
-                  ownerType = 'Renter';
-                  console.log('Classified as Renter (addresses don\'t match, not a business name)');
-                }
-              } else {
-                // Default to renter if we can't determine investor status
-                ownerType = 'Renter';
-                console.log('Defaulting to Renter (addresses don\'t match, no owner name found)');
-              }
-            }
-          } else {
-            // Can't determine from addresses, check owner type based on name
-            console.log('Could not find both property and mailing addresses, using owner name...');
-            
-            const mailOwnerColumn = cleanHeaders.find(header => 
-              header.toUpperCase().includes('MAIL OWNER') || 
-              header.toUpperCase().includes('OWNER NAME')
-            );
-            
-            if (mailOwnerColumn && propertyData[mailOwnerColumn]) {
-              // Business indicators to identify investors
-              const businessIndicators = [
-                'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
-                'investments', 'associates', 'rentals', 'management', 'company',
-                'partners', 'holdings', 'group', 'enterprise', 'services'
-              ];
-              
-              const ownerName = propertyData[mailOwnerColumn].toLowerCase();
-              const isBusinessOwner = businessIndicators.some(indicator => ownerName.includes(indicator));
-              
-              if (isBusinessOwner) {
-                ownerType = 'Investor';
-                console.log('Classified as Investor based on business name:', ownerName);
-              } else {
-                // Default to owner-occupied if we can't determine from addresses and it's not a business
-                ownerType = 'Owner-Occupied';
-                console.log('Defaulting to Owner-Occupied (no address comparison, not a business)');
-              }
-            }
-          }
+          // No explicit Owner Occupied column found, fallback to address comparison
+          console.log('No Owner Occupied column found, using fallback logic');
         }
         
-        // Only add valid properties to our array
+        // Add the processed property to our array
         if (Object.values(propertyData).some(val => val)) {
           properties.push({
             ...propertyData,
@@ -467,6 +367,8 @@ export default function CSVProcessorPage() {
     
     // Update preview with at most 10 items
     setPreview(filtered.slice(0, 10));
+    
+    console.log(`Filtered to ${filter}, showing ${filtered.length} properties`);
   };
 
   const downloadFilteredList = async () => {
@@ -490,6 +392,8 @@ export default function CSVProcessorPage() {
       } else if (activeFilter === 'renter') {
         dataToDownload = allProperties.filter(p => p.ownerType === 'Renter');
       }
+      
+      console.log(`Downloading ${dataToDownload.length} ${activeFilter} properties`);
       
       if (dataToDownload.length === 0) {
         alert('No properties match the selected filter');
@@ -603,51 +507,46 @@ export default function CSVProcessorPage() {
               
               {/* Filter and Download Section */}
               {dataProcessed && (
-                <div className="mt-6 mb-4">
-                  <h3 className="text-lg font-semibold mb-3">Property Filters</h3>
-                  <div className="flex flex-wrap gap-3 mb-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 p-6">
+                  <h3 className="text-xl font-semibold mb-4 flex items-center">
+                    <Filter className="mr-2 h-5 w-5 text-blue-600" /> 
+                    Filter Properties
+                  </h3>
+                  
+                  <div className="flex flex-wrap gap-3 mb-5">
                     <Button 
                       variant={activeFilter === 'all' ? 'default' : 'outline'} 
-                      size="sm"
                       onClick={() => filterProperties('all')}
                       className="flex items-center"
                     >
-                      <Filter className="mr-2 h-4 w-4" />
-                      All Properties ({allProperties?.length || 0})
+                      All ({allProperties?.length || 0})
                     </Button>
                     <Button 
                       variant={activeFilter === 'owner-occupied' ? 'default' : 'outline'} 
-                      size="sm"
                       onClick={() => filterProperties('owner-occupied')}
-                      className="flex items-center"
+                      className="flex items-center bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800"
                     >
-                      <Filter className="mr-2 h-4 w-4" />
-                      Owner-Occupied ({propertyCountsByType?.ownerOccupied || 0})
+                      Owner Occupied ({propertyCountsByType?.ownerOccupied || 0})
                     </Button>
                     <Button 
                       variant={activeFilter === 'investor' ? 'default' : 'outline'} 
-                      size="sm"
                       onClick={() => filterProperties('investor')}
-                      className="flex items-center"
+                      className="flex items-center bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:text-purple-800"
                     >
-                      <Filter className="mr-2 h-4 w-4" />
                       Investor ({propertyCountsByType?.investor || 0})
                     </Button>
                     <Button 
                       variant={activeFilter === 'renter' ? 'default' : 'outline'} 
-                      size="sm"
                       onClick={() => filterProperties('renter')}
-                      className="flex items-center"
+                      className="flex items-center bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:text-amber-800"
                     >
-                      <Filter className="mr-2 h-4 w-4" />
                       Renter ({propertyCountsByType?.renter || 0})
                     </Button>
                   </div>
                   
                   <div className="flex flex-wrap gap-3">
                     <Button 
-                      variant="outline" 
-                      size="sm"
+                      variant="default" 
                       onClick={() => downloadFilteredList()}
                       disabled={processingDownload || !allProperties || allProperties.length === 0}
                       className="flex items-center"
@@ -655,8 +554,16 @@ export default function CSVProcessorPage() {
                       <Download className="mr-2 h-4 w-4" />
                       {processingDownload ? 'Processing...' : `Download ${activeFilter === 'all' ? 'All' : 
                         activeFilter === 'owner-occupied' ? 'Owner-Occupied' : 
-                        activeFilter === 'investor' ? 'Investor' : 'Renter'} List`}
+                        activeFilter === 'investor' ? 'Investor' : 'Renter'} Properties`}
                     </Button>
+                  </div>
+                  
+                  {/* Add a note about filter criteria */}
+                  <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                    <p>
+                      <strong>Note:</strong> Properties are categorized based on the "Owner Occupied" column values. 
+                      Properties marked as "No" are classified as Investors based on your VBA script logic.
+                    </p>
                   </div>
                 </div>
               )}
