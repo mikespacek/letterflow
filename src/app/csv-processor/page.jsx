@@ -49,36 +49,75 @@ export default function CSVProcessorPage() {
       }
       
       // Process headers - assume first row is headers
+      // Fix header names by removing quotes if present
       const headerRow = rows[0].split(',');
-      setHeaders(headerRow.map(h => h.trim()));
+      const cleanHeaders = headerRow.map(h => {
+        let header = h.trim();
+        // Remove quotes if they exist
+        if (header.startsWith('"') && header.endsWith('"')) {
+          header = header.substring(1, header.length - 1);
+        }
+        return header;
+      });
+      
+      setHeaders(cleanHeaders);
       
       // Process all rows to properties
       const properties = rows.slice(1).map(row => {
         const rowData = row.split(',');
-        const propertyData = headerRow.reduce((obj, header, index) => {
-          obj[header.trim()] = rowData[index]?.trim() || '';
-          return obj;
-        }, {});
+        const propertyData = {};
+        
+        // Map each value to its corresponding clean header
+        cleanHeaders.forEach((header, index) => {
+          let value = rowData[index]?.trim() || '';
+          // Remove quotes if they exist
+          if (value.startsWith('"') && value.endsWith('"')) {
+            value = value.substring(1, value.length - 1);
+          }
+          propertyData[header] = value;
+        });
+        
+        // Debug: Log property data to console to see what we're working with
+        console.log('Property data:', propertyData);
         
         // Determine owner type based on data
         let ownerType = 'Owner-Occupied';
         
-        // Check if property has investment indicators
-        const isInvestor = propertyData.owner_type === 'Investor' || 
-                           propertyData.category === 'investment' ||
-                           (propertyData.mailing_address && 
-                            propertyData.property_address && 
-                            propertyData.mailing_address !== propertyData.property_address);
+        // Look for owner occupied field with various possible column names
+        const ownerOccupiedField = 
+          propertyData['OWNER OCCUPIED'] !== undefined ? 'OWNER OCCUPIED' :
+          propertyData['OWNER_OCCUPIED'] !== undefined ? 'OWNER_OCCUPIED' :
+          propertyData['owner_occupied'] !== undefined ? 'owner_occupied' :
+          propertyData['ownerOccupied'] !== undefined ? 'ownerOccupied' : null;
         
-        // Check if property is renter occupied
-        const isRenter = propertyData.owner_type === 'Renter' || 
-                         propertyData.category === 'renter' ||
-                         propertyData.occupancy_status === 'Renter Occupied';
+        // Log what field we found and its value
+        console.log('Owner occupied field:', ownerOccupiedField, 
+                   ownerOccupiedField ? propertyData[ownerOccupiedField] : 'Not found');
         
-        if (isInvestor) {
+        if (ownerOccupiedField && 
+            (propertyData[ownerOccupiedField].toLowerCase() === 'no' || 
+             propertyData[ownerOccupiedField] === 'false')) {
           ownerType = 'Investor';
-        } else if (isRenter) {
-          ownerType = 'Renter';
+          console.log('Marked as investor due to', ownerOccupiedField, '=', propertyData[ownerOccupiedField]);
+        } else {
+          // Fall back to the previous detection logic
+          // Check if property has investment indicators
+          const isInvestor = propertyData.owner_type === 'Investor' || 
+                             propertyData.category === 'investment' ||
+                             (propertyData.mailing_address && 
+                              propertyData.property_address && 
+                              propertyData.mailing_address !== propertyData.property_address);
+          
+          // Check if property is renter occupied
+          const isRenter = propertyData.owner_type === 'Renter' || 
+                           propertyData.category === 'renter' ||
+                           propertyData.occupancy_status === 'Renter Occupied';
+          
+          if (isInvestor) {
+            ownerType = 'Investor';
+          } else if (isRenter) {
+            ownerType = 'Renter';
+          }
         }
         
         return {
@@ -87,6 +126,7 @@ export default function CSVProcessorPage() {
         };
       }).filter(row => Object.values(row).some(val => val)); // Filter out empty rows
       
+      console.log('Processed properties:', properties);
       setAllProperties(properties);
       
       // Generate preview with 10 rows max
@@ -98,6 +138,7 @@ export default function CSVProcessorPage() {
       
       setLoading(false);
     } catch (err) {
+      console.error('CSV processing error:', err);
       setError('Error processing CSV file: ' + err.message);
       setLoading(false);
     }
