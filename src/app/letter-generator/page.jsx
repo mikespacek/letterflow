@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Send, Filter, FileText, Home, AlertCircle, ChevronRight, Map } from 'lucide-react';
+import { Send, Filter, FileText, Home, AlertCircle, ChevronRight, Map, Eye, Download, X, Printer } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import { getNeighborhoodById } from '@/services/neighborhoodService';
 
@@ -39,6 +39,9 @@ export default function LetterGeneratorPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
   const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+  const [generatedLetters, setGeneratedLetters] = useState([]);
+  const [previewLetter, setPreviewLetter] = useState(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   useEffect(() => {
     // Simulate API calls
@@ -123,7 +126,33 @@ export default function LetterGeneratorPage() {
       total: filteredProperties.length
     });
     
-    // Simulate letter generation
+    // Generate the actual letter content
+    const letters = filteredProperties.map(property => {
+      // Replace template placeholders with property data
+      let content = selectedTemplate.content;
+      
+      // Replace common placeholders
+      content = content.replace(/{{owner_name}}/g, property.ownerName || '');
+      content = content.replace(/{{first_name}}/g, property.first_name || '');
+      content = content.replace(/{{last_name}}/g, property.last_name || '');
+      content = content.replace(/{{address}}/g, property.address || '');
+      
+      // Add additional replacements for any other placeholders you might have
+      
+      return {
+        id: `letter-${property.id}`,
+        propertyId: property.id,
+        ownerName: property.ownerName,
+        address: property.address,
+        content: content,
+        templateId: selectedTemplate.id,
+        templateName: selectedTemplate.name,
+        generatedAt: new Date().toISOString(),
+        ownerType: property.ownerType
+      };
+    });
+    
+    // Simulate letter generation progress
     let count = 0;
     const interval = setInterval(() => {
       count++;
@@ -140,8 +169,83 @@ export default function LetterGeneratorPage() {
           completed: filteredProperties.length,
           total: filteredProperties.length
         });
+        setGeneratedLetters(letters);
       }
-    }, 500);
+    }, 100);
+  };
+
+  // Function to download a single letter as PDF
+  const downloadLetter = (letter) => {
+    // In a real app, you would generate a PDF here
+    // For now, we'll create a simple text file
+    const blob = new Blob([letter.content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Letter_to_${letter.ownerName.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Function to download all letters as a ZIP
+  const downloadAllLetters = () => {
+    // In a real app, you would generate a ZIP file with all PDFs
+    // For now, just show a message
+    alert(`In a real implementation, this would download a ZIP file containing ${generatedLetters.length} letters.`);
+  };
+
+  // Function to preview a letter
+  const openLetterPreview = (letter) => {
+    setPreviewLetter(letter);
+    setShowPreviewModal(true);
+  };
+
+  // Function to close the preview
+  const closeLetterPreview = () => {
+    setShowPreviewModal(false);
+    setPreviewLetter(null);
+  };
+
+  // Print the current letter preview
+  const printLetter = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Letter</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              margin: 20px;
+            }
+            .letter-container {
+              max-width: 800px;
+              margin: 0 auto;
+              white-space: pre-wrap;
+            }
+            @media print {
+              body {
+                margin: 0.5in;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="letter-container">
+            ${previewLetter.content.replace(/\n/g, '<br>')}
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const categories = [
@@ -374,8 +478,136 @@ export default function LetterGeneratorPage() {
               </div>
             </div>
           </div>
+          
+          {/* Generated Letters Section - Show only when letters are generated */}
+          {generatedLetters.length > 0 && (
+            <div className="mt-8">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Generated Letters</h2>
+                <button
+                  onClick={downloadAllLetters}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Download size={16} />
+                  Download All
+                </button>
+              </div>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {generatedLetters.length} Letters Generated
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Template: {selectedTemplate?.name}
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          Recipient
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          Address
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {generatedLetters.map((letter) => (
+                        <tr key={letter.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {letter.ownerName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {letter.address}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium 
+                              ${letter.ownerType === 'Owner-Occupied' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                                letter.ownerType === 'Investor' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' : 
+                                'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}
+                            >
+                              {letter.ownerType}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
+                            <button
+                              onClick={() => openLetterPreview(letter)}
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="Preview Letter"
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button
+                              onClick={() => downloadLetter(letter)}
+                              className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+                              title="Download Letter"
+                            >
+                              <Download size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
+
+      {/* Letter Preview Modal */}
+      {showPreviewModal && previewLetter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Letter Preview: {previewLetter.ownerName}
+              </h3>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={printLetter}
+                  className="p-2 rounded-md text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  title="Print Letter"
+                >
+                  <Printer size={20} />
+                </button>
+                <button
+                  onClick={() => downloadLetter(previewLetter)}
+                  className="p-2 rounded-md text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  title="Download Letter"
+                >
+                  <Download size={20} />
+                </button>
+                <button
+                  onClick={closeLetterPreview}
+                  className="p-2 rounded-md text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  title="Close Preview"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto flex-grow">
+              <div className="bg-white dark:bg-gray-700 p-8 border border-gray-200 dark:border-gray-600 rounded-md max-w-3xl mx-auto">
+                <div className="whitespace-pre-wrap font-serif text-gray-900 dark:text-white">
+                  {previewLetter.content}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
