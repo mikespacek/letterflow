@@ -47,12 +47,22 @@ export default function CSVProcessorPage() {
   // Find the owner occupied column regardless of case
   const findColumnByPattern = (headers, patterns) => {
     for (const pattern of patterns) {
+      const foundColumn = headers.find(h => {
+        const normalizedHeader = h.toUpperCase().replace(/[\s_-]+/g, '');
+        const normalizedPattern = pattern.toUpperCase().replace(/[\s_-]+/g, '');
+        return normalizedHeader === normalizedPattern || h.toUpperCase() === pattern.toUpperCase();
+      });
+      if (foundColumn) return foundColumn;
+    }
+    
+    // If exact match not found, try partial match
+    for (const pattern of patterns) {
       const foundColumn = headers.find(h => 
-        h.toUpperCase().replace(/\s+/g, ' ').trim() === pattern.toUpperCase() ||
-        h.toUpperCase().replace(/[\s_-]+/g, '') === pattern.toUpperCase().replace(/[\s_-]+/g, '')
+        h.toUpperCase().includes(pattern.toUpperCase())
       );
       if (foundColumn) return foundColumn;
     }
+    
     return null;
   };
 
@@ -133,15 +143,24 @@ export default function CSVProcessorPage() {
       
       // Find key columns by pattern matching
       const ownerOccupiedColumn = findColumnByPattern(cleanHeaders, [
-        'OWNER OCCUPIED', 'OWNER_OCCUPIED', 'OWNEROCCUPIED'
+        'OWNER OCCUPIED', 'OWNEROCCUPIED', 'OCCUPIED'
       ]);
       
       const mailOwnerNameColumn = findColumnByPattern(cleanHeaders, [
-        'MAIL OWNER NAME', 'OWNER NAME', 'MAILOWNERNAME', 'OWNER'
+        'MAIL OWNER NAME', 'MAILOWNERNAME', 'OWNER NAME'
       ]);
       
       console.log('Found Owner Occupied column:', ownerOccupiedColumn);
       console.log('Found Mail Owner Name column:', mailOwnerNameColumn);
+      
+      // Directly index of the OWNER OCCUPIED column to be absolutely sure
+      let ownerOccupiedColumnIndex = -1;
+      cleanHeaders.forEach((header, index) => {
+        if (header.toUpperCase() === 'OWNER OCCUPIED') {
+          ownerOccupiedColumnIndex = index;
+          console.log('EXACT MATCH for Owner Occupied column at index:', index);
+        }
+      });
       
       // Process all rows to properties
       const properties = [];
@@ -162,59 +181,39 @@ export default function CSVProcessorPage() {
           propertyData[header] = value;
         });
         
-        console.log('Row data:', propertyData);
-        
         // Determine owner type based on data
         let ownerType = 'Owner-Occupied'; // Default to owner-occupied
+        let ownerOccupiedValue = null;
         
-        // Check if we found the Owner Occupied column
-        if (ownerOccupiedColumn) {
-          const ownerOccupiedValue = propertyData[ownerOccupiedColumn]?.trim();
-          console.log('Owner Occupied value:', ownerOccupiedValue);
-          
-          // If it's explicitly marked as "No", determine if it's an investor or renter
-          if (ownerOccupiedValue && 
-              (ownerOccupiedValue.toLowerCase() === 'no' || 
-               ownerOccupiedValue.toLowerCase() === 'false' || 
-               ownerOccupiedValue === '0' ||
-               ownerOccupiedValue.toLowerCase() === 'n')) {
-            
-            // First check if it's a business entity
-            if (mailOwnerNameColumn && propertyData[mailOwnerNameColumn]) {
-              const ownerName = propertyData[mailOwnerNameColumn].toLowerCase();
-              
-              // Business indicators to identify investors
-              const businessIndicators = [
-                'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
-                'investments', 'associates', 'rentals', 'management', 'company',
-                'partners', 'holdings', 'group', 'enterprise', 'services', 'partnership'
-              ];
-              
-              if (businessIndicators.some(indicator => ownerName.includes(indicator))) {
-                ownerType = 'Investor';
-                console.log('Classified as Investor based on business name:', ownerName);
-              } else {
-                // For this CSV file format, all non-owner-occupied appear to be marked as investors
-                // This aligns with the VBA script where "No" in Owner Occupied is put on Investor sheet
-                ownerType = 'Investor';
-                console.log('Classified as Investor (not owner-occupied)');
-              }
-            } else {
-              // If we can't determine from owner name, default to Investor for "No" values
-              ownerType = 'Investor';
-              console.log('Defaulting to Investor (Owner Occupied = No)');
-            }
-          } else {
-            // If it's not "No", it's probably "Yes" or blank (which we assume is Owner-Occupied)
-            ownerType = 'Owner-Occupied';
-            console.log('Classified as Owner-Occupied');
-          }
-        } else {
-          // No explicit Owner Occupied column found, fallback to address comparison
-          console.log('No Owner Occupied column found, using fallback logic');
+        // Get Owner Occupied value using multiple approaches to be super reliable
+        if (ownerOccupiedColumn && propertyData[ownerOccupiedColumn]) {
+          ownerOccupiedValue = propertyData[ownerOccupiedColumn].trim();
+          console.log(`Row ${i}: Owner Occupied column found by column name, value:`, ownerOccupiedValue);
+        } else if (ownerOccupiedColumnIndex >= 0 && rowData[ownerOccupiedColumnIndex]) {
+          ownerOccupiedValue = rowData[ownerOccupiedColumnIndex].trim();
+          console.log(`Row ${i}: Owner Occupied column found by index, value:`, ownerOccupiedValue);
         }
         
-        // Add the processed property to our array
+        // Debug information
+        console.log(`Row ${i} data:`, propertyData);
+        if (ownerOccupiedValue) {
+          console.log(`Row ${i} owner occupied value:`, ownerOccupiedValue);
+        } else {
+          console.log(`Row ${i} owner occupied value not found`);
+        }
+        
+        // If we have an Owner Occupied value, use it for categorization
+        if (ownerOccupiedValue) {
+          if (ownerOccupiedValue.toLowerCase() === 'no') {
+            ownerType = 'Investor';
+            console.log(`Row ${i}: Categorized as Investor (Owner Occupied = No)`);
+          } else if (ownerOccupiedValue.toLowerCase() === 'yes') {
+            ownerType = 'Owner-Occupied';
+            console.log(`Row ${i}: Categorized as Owner-Occupied (Owner Occupied = Yes)`);
+          }
+        }
+        
+        // Add the processed property to our array with all properties
         if (Object.values(propertyData).some(val => val)) {
           properties.push({
             ...propertyData,
@@ -348,11 +347,28 @@ export default function CSVProcessorPage() {
 
   const filterProperties = (filter) => {
     setActiveFilter(filter);
+    console.log('Filtering to:', filter);
+    
     if (!allProperties || allProperties.length === 0) {
+      console.log('No properties to filter');
       setPreview([]);
       return;
     }
 
+    console.log('All properties count:', allProperties.length);
+    console.log('Owner-Occupied count:', allProperties.filter(p => p.ownerType === 'Owner-Occupied').length);
+    console.log('Investor count:', allProperties.filter(p => p.ownerType === 'Investor').length);
+    console.log('Renter count:', allProperties.filter(p => p.ownerType === 'Renter').length);
+    
+    // Sample a few properties to debug in console
+    console.log('Sample properties:');
+    allProperties.slice(0, 3).forEach((p, i) => {
+      console.log(`Property ${i}:`, {
+        ownerType: p.ownerType,
+        ownerOccupied: p['OWNER OCCUPIED'] || 'not found'
+      });
+    });
+    
     let filtered = [];
     
     if (filter === 'all') {
@@ -524,21 +540,21 @@ export default function CSVProcessorPage() {
                     <Button 
                       variant={activeFilter === 'owner-occupied' ? 'default' : 'outline'} 
                       onClick={() => filterProperties('owner-occupied')}
-                      className="flex items-center bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800"
+                      className={`flex items-center ${activeFilter === 'owner-occupied' ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800'}`}
                     >
                       Owner Occupied ({propertyCountsByType?.ownerOccupied || 0})
                     </Button>
                     <Button 
                       variant={activeFilter === 'investor' ? 'default' : 'outline'} 
                       onClick={() => filterProperties('investor')}
-                      className="flex items-center bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:text-purple-800"
+                      className={`flex items-center ${activeFilter === 'investor' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:text-purple-800'}`}
                     >
                       Investor ({propertyCountsByType?.investor || 0})
                     </Button>
                     <Button 
                       variant={activeFilter === 'renter' ? 'default' : 'outline'} 
                       onClick={() => filterProperties('renter')}
-                      className="flex items-center bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:text-amber-800"
+                      className={`flex items-center ${activeFilter === 'renter' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:text-amber-800'}`}
                     >
                       Renter ({propertyCountsByType?.renter || 0})
                     </Button>
@@ -559,11 +575,13 @@ export default function CSVProcessorPage() {
                   </div>
                   
                   {/* Add a note about filter criteria */}
-                  <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                    <p>
-                      <strong>Note:</strong> Properties are categorized based on the "Owner Occupied" column values. 
-                      Properties marked as "No" are classified as Investors based on your VBA script logic.
-                    </p>
+                  <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 border-t pt-4 border-gray-200 dark:border-gray-700">
+                    <p className="font-medium mb-1">Filter Details:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Properties with <strong>"Yes"</strong> in the Owner Occupied column are categorized as <strong>Owner Occupied</strong>.</li>
+                      <li>Properties with <strong>"No"</strong> in the Owner Occupied column are categorized as <strong>Investors</strong>.</li>
+                      <li>The current CSV has {propertyCountsByType?.ownerOccupied || 0} Owner Occupied and {propertyCountsByType?.investor || 0} Investor properties.</li>
+                    </ul>
                   </div>
                 </div>
               )}
@@ -598,8 +616,13 @@ export default function CSVProcessorPage() {
                   
                   <div className="overflow-x-auto max-h-96">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
                         <tr>
+                          <th 
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-gray-100 dark:bg-gray-600"
+                          >
+                            Owner Type
+                          </th>
                           {headers.map((header, index) => (
                             <th 
                               key={index} 
@@ -608,22 +631,11 @@ export default function CSVProcessorPage() {
                               {header}
                             </th>
                           ))}
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Owner Type
-                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {preview.map((row, rowIndex) => (
                           <tr key={rowIndex} className="hover:bg-gray-50 dark:hover:bg-gray-750">
-                            {headers.map((header, cellIndex) => (
-                              <td 
-                                key={cellIndex} 
-                                className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400"
-                              >
-                                {row[header] || '-'}
-                              </td>
-                            ))}
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                               <span className={`px-2 py-1 rounded-full text-xs font-medium 
                                 ${row.ownerType === 'Owner-Occupied' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
@@ -632,6 +644,16 @@ export default function CSVProcessorPage() {
                                 {row.ownerType}
                               </span>
                             </td>
+                            {headers.map((header, cellIndex) => (
+                              <td 
+                                key={cellIndex} 
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 ${
+                                  header.toUpperCase() === 'OWNER OCCUPIED' ? 'font-medium' : ''
+                                }`}
+                              >
+                                {row[header] || '-'}
+                              </td>
+                            ))}
                           </tr>
                         ))}
                       </tbody>
