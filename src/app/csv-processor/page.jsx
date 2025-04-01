@@ -83,40 +83,87 @@ export default function CSVProcessorPage() {
         // Determine owner type based on data
         let ownerType = 'Owner-Occupied';
         
-        // Look for owner occupied field with various possible column names
+        // Business indicators to identify investors
+        const businessIndicators = [
+          'llc', 'inc', 'corporation', 'corp', 'trust', 'properties',
+          'investments', 'associates', 'rentals', 'management', 'company',
+          'partners', 'holdings', 'group', 'enterprise', 'services'
+        ];
+        
+        // Helper function to check if an owner name indicates a business
+        const isBusinessOwner = (ownerName) => {
+          const lowerName = ownerName.toLowerCase();
+          return businessIndicators.some(indicator => lowerName.includes(indicator));
+        };
+        
+        // First check for explicit "OWNER OCCUPIED" column
         const ownerOccupiedField = 
           propertyData['OWNER OCCUPIED'] !== undefined ? 'OWNER OCCUPIED' :
           propertyData['OWNER_OCCUPIED'] !== undefined ? 'OWNER_OCCUPIED' :
-          propertyData['owner_occupied'] !== undefined ? 'owner_occupied' :
-          propertyData['ownerOccupied'] !== undefined ? 'ownerOccupied' : null;
-        
-        // Log what field we found and its value
-        console.log('Owner occupied field:', ownerOccupiedField, 
-                   ownerOccupiedField ? propertyData[ownerOccupiedField] : 'Not found');
+          propertyData['owner_occupied'] !== undefined ? 'owner_occupied' : null;
         
         if (ownerOccupiedField && 
             (propertyData[ownerOccupiedField].toLowerCase() === 'no' || 
              propertyData[ownerOccupiedField] === 'false')) {
-          ownerType = 'Investor';
-          console.log('Marked as investor due to', ownerOccupiedField, '=', propertyData[ownerOccupiedField]);
-        } else {
-          // Fall back to the previous detection logic
-          // Check if property has investment indicators
-          const isInvestor = propertyData.owner_type === 'Investor' || 
-                             propertyData.category === 'investment' ||
-                             (propertyData.mailing_address && 
-                              propertyData.property_address && 
-                              propertyData.mailing_address !== propertyData.property_address);
+          // If owner occupied is explicitly marked as "No", check if it's an investor or renter
           
-          // Check if property is renter occupied
-          const isRenter = propertyData.owner_type === 'Renter' || 
-                           propertyData.category === 'renter' ||
-                           propertyData.occupancy_status === 'Renter Occupied';
+          // Check for business indicators in owner name to identify investors
+          const ownerName = propertyData['MAIL OWNER NAME'] || 
+                           propertyData['OWNER NAME'] || 
+                           propertyData['TAXPAYER NAME'] || 
+                           propertyData['OWNER'] || '';
           
-          if (isInvestor) {
+          if (isBusinessOwner(ownerName)) {
             ownerType = 'Investor';
-          } else if (isRenter) {
+          } else {
             ownerType = 'Renter';
+          }
+        } else if (!ownerOccupiedField) {
+          // If no explicit owner occupied field, compare mailing and property addresses
+          
+          // Look for property address
+          const propertyAddress = propertyData['PROPERTY ADDRESS'] || 
+                                 propertyData['SITUS ADDRESS'] || 
+                                 propertyData['SITE ADDRESS'] || 
+                                 propertyData['ADDRESS'] || '';
+          
+          // Look for mailing address
+          const mailingAddress = propertyData['MAILING ADDRESS'] || 
+                                propertyData['TAX BILLING ADDRESS'] || 
+                                propertyData['MAIL ADDRESS'] || 
+                                propertyData['TAXPAYER ADDRESS'] || '';
+          
+          // Simple address comparison - normalize and check if one contains the other
+          const normalizeAddress = (addr) => {
+            if (!addr) return '';
+            // Remove common suffixes, punctuation, and convert to lowercase
+            return addr.toLowerCase()
+              .replace(/\b(street|avenue|boulevard|drive|court|lane|road|place|way|circle|terrace|parkway)\b/g, '')
+              .replace(/\b(st|ave|blvd|dr|ct|ln|rd|pl|wy|cir|ter|pkwy)\b\.?/g, '')
+              .replace(/[^\w\s]/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+          };
+          
+          const normPropertyAddr = normalizeAddress(propertyAddress);
+          const normMailingAddr = normalizeAddress(mailingAddress);
+          
+          // If we have both addresses and they don't match, it's not owner-occupied
+          if (normPropertyAddr && normMailingAddr && 
+              !normPropertyAddr.includes(normMailingAddr) && 
+              !normMailingAddr.includes(normPropertyAddr)) {
+            
+            // Check owner name for business indicators to determine if investor or renter
+            const ownerName = propertyData['MAIL OWNER NAME'] || 
+                             propertyData['OWNER NAME'] || 
+                             propertyData['TAXPAYER NAME'] || 
+                             propertyData['OWNER'] || '';
+            
+            if (isBusinessOwner(ownerName)) {
+              ownerType = 'Investor';
+            } else {
+              ownerType = 'Renter';
+            }
           }
         }
         
