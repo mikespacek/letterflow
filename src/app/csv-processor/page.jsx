@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Check, AlertCircle, Table, Save, Home, MapPin } from 'lucide-react';
+import { Upload, Check, AlertCircle, Table, Save, Home, MapPin, Download, Filter } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import { createNeighborhood } from '@/services/neighborhoodService';
 
@@ -16,6 +16,9 @@ export default function CSVProcessorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [neighborhoodName, setNeighborhoodName] = useState('');
+  const [allProperties, setAllProperties] = useState([]);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [processingDownload, setProcessingDownload] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -49,16 +52,45 @@ export default function CSVProcessorPage() {
       const headerRow = rows[0].split(',');
       setHeaders(headerRow.map(h => h.trim()));
       
-      // Generate preview with 10 rows max
-      const previewData = rows.slice(1, 11).map(row => {
+      // Process all rows to properties
+      const properties = rows.slice(1).map(row => {
         const rowData = row.split(',');
-        return headerRow.reduce((obj, header, index) => {
+        const propertyData = headerRow.reduce((obj, header, index) => {
           obj[header.trim()] = rowData[index]?.trim() || '';
           return obj;
         }, {});
+        
+        // Determine owner type based on data
+        let ownerType = 'Owner-Occupied';
+        
+        // Check if property has investment indicators
+        const isInvestor = propertyData.owner_type === 'Investor' || 
+                           propertyData.category === 'investment' ||
+                           (propertyData.mailing_address && 
+                            propertyData.property_address && 
+                            propertyData.mailing_address !== propertyData.property_address);
+        
+        // Check if property is renter occupied
+        const isRenter = propertyData.owner_type === 'Renter' || 
+                         propertyData.category === 'renter' ||
+                         propertyData.occupancy_status === 'Renter Occupied';
+        
+        if (isInvestor) {
+          ownerType = 'Investor';
+        } else if (isRenter) {
+          ownerType = 'Renter';
+        }
+        
+        return {
+          ...propertyData,
+          ownerType
+        };
       }).filter(row => Object.values(row).some(val => val)); // Filter out empty rows
       
-      setPreview(previewData);
+      setAllProperties(properties);
+      
+      // Generate preview with 10 rows max
+      setPreview(properties.slice(0, 10));
       
       // Set default neighborhood name based on file name
       const defaultName = file.name.replace('.csv', '').replace(/[_-]/g, ' ');
@@ -93,7 +125,7 @@ export default function CSVProcessorPage() {
   }, []);
 
   const saveAsNeighborhood = async () => {
-    if (!file || preview.length === 0) {
+    if (!file || allProperties.length === 0) {
       setError('No data to save');
       return;
     }
@@ -107,57 +139,37 @@ export default function CSVProcessorPage() {
     setError('');
     
     try {
-      // Process the CSV data to create properties
-      const text = await file.text();
-      const rows = text.split('\n');
-      const headerRow = rows[0].split(',').map(h => h.trim());
-      
-      // Map CSV rows to property objects
-      const properties = rows.slice(1)
-        .map(row => {
-          const rowData = row.split(',');
-          return headerRow.reduce((obj, header, index) => {
-            obj[header.trim()] = rowData[index]?.trim() || '';
-            return obj;
-          }, {});
-        })
-        .filter(row => Object.values(row).some(val => val))
-        .map((row, index) => {
-          // Map to property object with expected fields
-          return {
-            id: index + 1,
-            ownerName: row.owner_name || `${row.first_name || ''} ${row.last_name || ''}`.trim(),
-            first_name: row.first_name || '',
-            last_name: row.last_name || '',
-            address: row.address || '',
-            category: row.category || 'residential',
-            ownerType: row.owner_type || 'Owner-Occupied',
-            estimatedValue: parseFloat(row.estimated_value || '0') || 0,
-            lastSoldDate: row.last_sold_date || new Date().toISOString().split('T')[0]
-          };
-        });
-      
       // Count property types
-      const ownerOccupiedCount = properties.filter(p => 
+      const ownerOccupiedCount = allProperties.filter(p => 
         p.ownerType === 'Owner-Occupied').length;
       
-      const investorCount = properties.filter(p => 
+      const investorCount = allProperties.filter(p => 
         p.ownerType === 'Investor').length;
       
-      const renterCount = properties.filter(p => 
+      const renterCount = allProperties.filter(p => 
         p.ownerType === 'Renter').length;
       
       // Prepare neighborhood data
       const neighborhoodData = {
         name: neighborhoodName,
-        city: properties[0]?.address?.split(',')[1]?.trim() || '',
-        state: properties[0]?.address?.split(',')[2]?.trim()?.split(' ')[0] || '',
-        zipCode: properties[0]?.address?.split(',')[2]?.trim()?.split(' ')[1] || '',
-        propertiesCount: properties.length,
+        city: allProperties[0]?.address?.split(',')[1]?.trim() || '',
+        state: allProperties[0]?.address?.split(',')[2]?.trim()?.split(' ')[0] || '',
+        zipCode: allProperties[0]?.address?.split(',')[2]?.trim()?.split(' ')[1] || '',
+        propertiesCount: allProperties.length,
         ownerOccupiedCount,
         investorCount,
         renterCount,
-        properties
+        properties: allProperties.map((prop, index) => ({
+          id: index + 1,
+          ownerName: prop.owner_name || `${prop.first_name || ''} ${prop.last_name || ''}`.trim(),
+          first_name: prop.first_name || '',
+          last_name: prop.last_name || '',
+          address: prop.address || prop.property_address || '',
+          category: prop.category || 'residential',
+          ownerType: prop.ownerType,
+          estimatedValue: parseFloat(prop.estimated_value || '0') || 0,
+          lastSoldDate: prop.last_sold_date || new Date().toISOString().split('T')[0]
+        }))
       };
       
       // Save to the database
@@ -177,6 +189,62 @@ export default function CSVProcessorPage() {
     }
   };
 
+  const filterProperties = (filterType) => {
+    setActiveFilter(filterType);
+    
+    if (filterType === 'all') {
+      setPreview(allProperties.slice(0, 10));
+      return;
+    }
+    
+    const filtered = allProperties.filter(property => property.ownerType === filterType);
+    setPreview(filtered.slice(0, 10));
+  };
+
+  const downloadFilteredList = () => {
+    if (allProperties.length === 0) {
+      setError('No data to download');
+      return;
+    }
+    
+    setProcessingDownload(true);
+    
+    try {
+      // Filter properties based on active filter
+      let dataToDownload = allProperties;
+      let fileName = `${neighborhoodName || 'properties'}_all.csv`;
+      
+      if (activeFilter !== 'all') {
+        dataToDownload = allProperties.filter(property => property.ownerType === activeFilter);
+        fileName = `${neighborhoodName || 'properties'}_${activeFilter.toLowerCase()}.csv`;
+      }
+      
+      // Create CSV content
+      const csvContent = [
+        headers.join(','), // Headers row
+        ...dataToDownload.map(property => {
+          return headers.map(header => property[header] || '').join(',');
+        })
+      ].join('\n');
+      
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setProcessingDownload(false);
+    } catch (err) {
+      setError('Error downloading data: ' + err.message);
+      setProcessingDownload(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       <Sidebar />
@@ -185,7 +253,7 @@ export default function CSVProcessorPage() {
           <header className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">CSV Processor</h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Upload a CSV file with property data to create a new neighborhood
+              Upload a CSV file with property data to create a new neighborhood or download specific property lists
             </p>
           </header>
           
@@ -222,6 +290,84 @@ export default function CSVProcessorPage() {
             </div>
           ) : (
             <div>
+              {/* Filter and Download Section */}
+              {allProperties.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 p-6">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-2">
+                        <Filter className="h-5 w-5 mr-2 text-blue-600" />
+                        Filter Properties
+                      </h2>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => filterProperties('all')}
+                          className={`px-3 py-1 rounded-md text-sm ${
+                            activeFilter === 'all'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          All ({allProperties.length})
+                        </button>
+                        <button
+                          onClick={() => filterProperties('Owner-Occupied')}
+                          className={`px-3 py-1 rounded-md text-sm ${
+                            activeFilter === 'Owner-Occupied'
+                              ? 'bg-green-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          Owner Occupied ({allProperties.filter(p => p.ownerType === 'Owner-Occupied').length})
+                        </button>
+                        <button
+                          onClick={() => filterProperties('Investor')}
+                          className={`px-3 py-1 rounded-md text-sm ${
+                            activeFilter === 'Investor'
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          Investor ({allProperties.filter(p => p.ownerType === 'Investor').length})
+                        </button>
+                        <button
+                          onClick={() => filterProperties('Renter')}
+                          className={`px-3 py-1 rounded-md text-sm ${
+                            activeFilter === 'Renter'
+                              ? 'bg-amber-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          Renter ({allProperties.filter(p => p.ownerType === 'Renter').length})
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={downloadFilteredList}
+                      disabled={processingDownload}
+                      className={`px-4 py-2 rounded-md text-white flex items-center ${
+                        processingDownload
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {processingDownload ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download {activeFilter !== 'all' ? activeFilter : 'All'} Properties
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               {/* Preview Section */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 overflow-hidden">
                 <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -231,7 +377,7 @@ export default function CSVProcessorPage() {
                       Data Preview
                     </h2>
                     <p className="text-sm text-gray-500">
-                      {file.name} • {preview.length} rows previewed
+                      {file.name} • {preview.length} rows previewed {activeFilter !== 'all' ? `(filtered to ${activeFilter})` : ''}
                     </p>
                   </div>
                   <button
@@ -240,6 +386,7 @@ export default function CSVProcessorPage() {
                       setPreview([]);
                       setHeaders([]);
                       setSaveSuccess(false);
+                      setAllProperties([]);
                     }}
                     className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
@@ -259,6 +406,9 @@ export default function CSVProcessorPage() {
                             {header}
                           </th>
                         ))}
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          Owner Type
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -272,6 +422,14 @@ export default function CSVProcessorPage() {
                               {row[header] || '-'}
                             </td>
                           ))}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium 
+                              ${row.ownerType === 'Owner-Occupied' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                                row.ownerType === 'Investor' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' : 
+                                'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                              {row.ownerType}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'CSV Processor', href: '/csv-processor', icon: Upload },
   { name: 'Neighborhoods', href: '/neighborhoods', icon: Map },
   { name: 'Templates', href: '/templates', icon: FileText },
