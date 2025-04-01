@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Models for the Real Estate Letter Generator
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  name            String?
+  password        String         // Hashed password
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  plan            String         @default("free") // "free", "starter", "pro"
+  uploadsUsed     Int            @default(0)
+  subscriptionId  String?        // External subscription ID
+  renewalDate     DateTime?
+  neighborhoods   Neighborhood[]
+  templates       Template[]
+  letters         Letter[]
+  campaigns       Campaign[]
+}
+
+model Neighborhood {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  properties  Property[]
+}
+
+model Property {
+  id             String       @id @default(cuid())
+  address        String
+  ownerName      String?
+  ownerType      String       // "Owner-Occupied", "Investor", "Renter"
+  ownerFirstName String?
+  ownerLastName  String?
+  estimatedValue String?
+  lastSoldDate   String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  neighborhoodId String
+  neighborhood   Neighborhood @relation(fields: [neighborhoodId], references: [id], onDelete: Cascade)
+  letters        Letter[]
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   // "rental", "commercial", "residential", "land"
+  content     String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  letters     Letter[]
+}
+
+model Letter {
+  id          String    @id @default(cuid())
+  content     String
+  status      String    @default("draft") // "draft", "sent", "scheduled"
+  sentAt      DateTime?
+  scheduledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId  String
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  templateId  String
+  template    Template  @relation(fields: [templateId], references: [id])
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   @default("draft") // "draft", "in_progress", "completed", "scheduled"
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  letters     Letter[]
+}

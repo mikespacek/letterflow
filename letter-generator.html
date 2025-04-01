@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letter Generator - Real Estate Letter Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-home"></i> RE Letter Gen</h2>
+                <button id="toggleSidebar" class="toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="index.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="csv-processor.html"><i class="fas fa-file-csv"></i> CSV Processor</a></li>
+                    <li class="active"><a href="letter-generator.html"><i class="fas fa-envelope"></i> Letter Generator</a></li>
+                    <li><a href="template-manager.html"><i class="fas fa-file-alt"></i> Template Manager</a></li>
+                    <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="api-status">
+                    <span>API Status:</span>
+                    <span id="apiStatus" class="status-indicator">Checking...</span>
+                </div>
+                <div class="theme-toggle">
+                    <label for="themeSwitch">Dark Mode</label>
+                    <input type="checkbox" id="themeSwitch">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content">
+            <header class="content-header">
+                <h1>Letter Generator</h1>
+                <div class="user-actions">
+                    <button id="helpBtn" class="btn btn-outline"><i class="fas fa-question-circle"></i> Help</button>
+                    <button id="settingsBtn" class="btn btn-outline"><i class="fas fa-cog"></i> Settings</button>
+                </div>
+            </header>
+
+            <section class="letter-generator-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Generate Letters</h2>
+                    </div>
+                    <div class="card-body">
+                        <div id="noDataAlert" class="alert alert-warning" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i> 
+                            No property data found. Please <a href="csv-processor.html">upload and process a CSV file</a> first.
+                        </div>
+                        
+                        <div id="generatorForm">
+                            <div class="form-group">
+                                <label for="dataFileSelect" class="form-label">Select Data File</label>
+                                <select id="dataFileSelect" class="form-select">
+                                    <option value="">-- Please select a file --</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="templateSelect" class="form-label">Select Template</label>
+                                <select id="templateSelect" class="form-select">
+                                    <option value="">-- Please select a template --</option>
+                                </select>
+                                <div class="mt-2">
+                                    <a href="template-manager.html" class="btn btn-outline btn-sm">
+                                        <i class="fas fa-plus"></i> Create New Template
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Property Categories</label>
+                                <div class="form-check">
+                                    <input type="checkbox" id="ownerCheck" class="form-check-input" checked>
+                                    <label for="ownerCheck" class="form-check-label category-owner">Owner-Occupied</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="renterCheck" class="form-check-input" checked>
+                                    <label for="renterCheck" class="form-check-label category-renter">Renter-Occupied</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="investorCheck" class="form-check-input" checked>
+                                    <label for="investorCheck" class="form-check-label category-investor">Investor</label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <button id="generateLettersBtn" class="btn btn-primary">
+                                    <i class="fas fa-envelope"></i> Generate Letters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="lettersSection" class="letters-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Generated Letters</h2>
+                        <div>
+                            <button id="downloadPdfBtn" class="btn btn-primary">
+                                <i class="fas fa-file-pdf"></i> Download PDF
+                            </button>
+                            <button id="downloadTextBtn" class="btn btn-outline">
+                                <i class="fas fa-file-alt"></i> Download Text
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="generateSpinner" class="spinner"></div>
+                        
+                        <div id="lettersContainer" style="display: none;">
+                            <div class="letters-stats">
+                                <p>Generated <span id="letterCount">0</span> letters</p>
+                            </div>
+                            
+                            <div class="table-controls">
+                                <div class="search-box">
+                                    <input type="text" id="searchInput" class="form-control" placeholder="Search recipients...">
+                                </div>
+                                <div class="filter-controls">
+                                    <select id="categoryFilter" class="form-select">
+                                        <option value="all">All Categories</option>
+                                        <option value="owner">Owner-Occupied</option>
+                                        <option value="renter">Renter-Occupied</option>
+                                        <option value="investor">Investor</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="table-container">
+                                <table id="lettersTable" class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Recipient</th>
+                                            <th>Category</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lettersTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="previewSection" class="preview-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Letter Preview</h2>
+                        <button id="closePreviewBtn" class="btn btn-outline">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="letterPreview" class="letter-preview"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for Help -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Letter Generator Help</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h3>Generating Letters</h3>
+                <p>The Letter Generator allows you to create personalized letters for property owners based on processed CSV data.</p>
+                
+                <h3>Step 1: Select Data File</h3>
+                <p>Choose a previously processed data file from the dropdown. If you haven't processed any data yet, go to the <a href="csv-processor.html">CSV Processor</a> first.</p>
+                
+                <h3>Step 2: Select Template</h3>
+                <p>Choose a letter template from the dropdown. You can create new templates in the <a href="template-manager.html">Template Manager</a>.</p>
+                
+                <h3>Step 3: Filter Categories</h3>
+                <p>Choose which property categories you want to generate letters for:</p>
+                <ul>
+                    <li><strong class="category-owner">Owner-Occupied</strong>: Property owners who live in their properties</li>
+                    <li><strong class="category-renter">Renter-Occupied</strong>: Property owners who rent out their properties</li>
+                    <li><strong class="category-investor">Investor</strong>: Property owners with multiple properties</li>
+                </ul>
+                
+                <h3>Step 4: Generate and Export</h3>
+                <p>Click "Generate Letters" to create personalized letters for each property owner. You can then:</p>
+                <ul>
+                    <li>Preview individual letters</li>
+                    <li>Download all letters as a PDF file</li>
+                    <li>Download all letters as text files</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_URL = 'http://localhost:3006';
+        let currentFileId = null;
+        let currentTemplateId = null;
+        let generatedOutputId = null;
+        let generatedLetters = null;
+        
+        // DOM Elements
+        const noDataAlert = document.getElementById('noDataAlert');
+        const dataFileSelect = document.getElementById('dataFileSelect');
+        const templateSelect = document.getElementById('templateSelect');
+        const ownerCheck = document.getElementById('ownerCheck');
+        const renterCheck = document.getElementById('renterCheck');
+        const investorCheck = document.getElementById('investorCheck');
+        const generateLettersBtn = document.getElementById('generateLettersBtn');
+        const lettersSection = document.getElementById('lettersSection');
+        const generateSpinner = document.getElementById('generateSpinner');
+        const lettersContainer = document.getElementById('lettersContainer');
+        const letterCount = document.getElementById('letterCount');
+        const lettersTableBody = document.getElementById('lettersTableBody');
+        const searchInput = document.getElementById('searchInput');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+        const downloadTextBtn = document.getElementById('downloadTextBtn');
+        const previewSection = document.getElementById('previewSection');
+        const letterPreview = document.getElementById('letterPreview');
+        const closePreviewBtn = document.getElementById('closePreviewBtn');
+        
+        // Check API Status
+        async function checkApiStatus() {
+            const statusElement = document.getElementById('apiStatus');
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    statusElement.textContent = 'Online';
+                    statusElement.className = 'status-indicator online';
+                } else {
+                    statusElement.textContent = 'Error';
+                    statusElement.className = 'status-indicator error';
+                }
+            } catch (error) {
+                statusElement.textContent = 'Offline';
+                statusElement.className = 'status-indicator offline';
+            }
+        }
+        
+        // Theme Toggle
+        function initThemeToggle() {
+            const themeSwitch = document.getElementById('themeSwitch');
+            
+            // Check for saved theme preference or respect OS preference
+            const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const savedTheme = localStorage.getItem('theme');
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDarkMode)) {
+                document.body.classList.add('dark-mode');
+                themeSwitch.checked = true;
+            }
+            
+            // Toggle theme when switch changes
+            themeSwitch.addEventListener('change', function() {
+                if (this.checked) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+        }
+        
+        // Sidebar Toggle for Mobile
+        function initSidebarToggle() {
+            const toggleBtn = document.getElementById('toggleSidebar');
+            const sidebar = document.querySelector('.sidebar');
+            
+            toggleBtn.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+        
+        // Modal Controls
+        function initModals() {
+            // Help Modal
+            const helpModal = document.getElementById('helpModal');
+            const helpBtn = document.getElementById('helpBtn');
+            const closeBtn = helpModal.querySelector('.close');
+            
+            helpBtn.addEventListener('click', function() {
+                helpModal.style.display = 'block';
+            });
+            
+            closeBtn.addEventListener('click', function() {
+                helpModal.style.display = 'none';
+            });
+            
+            window.addEventListener('click', function(event) {
+                if (event.target === helpModal) {
+                    helpModal.style.display = 'none';
+                }
+            });
+        }
+        
+        // Load Data Files
+        async function loadDataFiles() {
+            try {
+                // For this demo, we'll just load from localStorage
+                // In a real implementation, you'd fetch a list of processed files from the API
+                const lastFileId = localStorage.getItem('lastProcessedFileId');
+                
+                if (lastFileId) {
+                    const response = await fetch(`${API_URL}/processed/${lastFileId}`);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Add option to select
+                        const option = document.createElement('option');
+                        option.value = lastFileId;
+                        option.textContent = `${data.filename} (${data.processed_at.slice(0, 10)})`;
+                        dataFileSelect.appendChild(option);
+                        
+                        // Select it
+                        dataFileSelect.value = lastFileId;
+                        currentFileId = lastFileId;
+                        
+                        // Hide no data alert
+                        noDataAlert.style.display = 'none';
+                    } else {
+                        showNoDataAlert();
+                    }
+                } else {
+                    showNoDataAlert();
+                }
+            } catch (error) {
+                console.error('Error loading data files:', error);
+                showNoDataAlert();
+            }
+        }
+        
+        // Show No Data Alert
+        function showNoDataAlert() {
+            noDataAlert.style.display = 'block';
+            document.getElementById('generatorForm').style.display = 'none';
+        }
+        
+        // Load Templates
+        async function loadTemplates() {
+            try {
+                const response = await fetch(`${API_URL}/templates`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                const templates = await response.json();
+                
+                // Clear existing options except the first one
+                while (templateSelect.options.length > 1) {
+                    templateSelect.remove(1);
+                }
+                
+                // Add templates to select
+                templates.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.id;
+                    option.textContent = template.name;
+                    templateSelect.appendChild(option);
+                });
+                
+                // If no templates, add a message
+                if (templates.length === 0) {
+                    const option = document.createElement('option');
+                    option.disabled = true;
+                    option.textContent = 'No templates found';
+                    templateSelect.appendChild(option);
+                }
+                
+            } catch (error) {
+                console.error('Error loading templates:', error);
+                
+                // Add error option
+                const option = document.createElement('option');
+                option.disabled = true;
+                option.textContent = 'Error loading templates';
+                templateSelect.appendChild(option);
+            }
+        }
+        
+        // Generate Letters
+        async function generateLetters() {
+            const fileId = dataFileSelect.value;
+            const templateId = templateSelect.value;
+            
+            // Validate selections
+            if (!fileId) {
+                alert('Please select a data file');
+                return;
+            }
+            
+            if (!templateId) {
+                alert('Please select a template');
+                return;
+            }
+            
+            // Get selected categories
+            const categories = [];
+            if (ownerCheck.checked) categories.push('owner');
+            if (renterCheck.checked) categories.push('renter');
+            if (investorCheck.checked) categories.push('investor');
+            
+            if (categories.length === 0) {
+                alert('Please select at least one property category');
+                return;
+            }
+            
+            // Show spinner
+            lettersSection.style.display = 'block';
+            generateSpinner.style.display = 'block';
+            lettersContainer.style.display = 'none';
+            
+            try {
+                // Construct the URL with query parameters for categories
+                const queryParams = new URLSearchParams();
+                categories.forEach(category => queryParams.append('categories', category));
+                
+                const response = await fetch(
+                    `${API_URL}/generate-letters/${fileId}/${templateId}?${queryParams.toString()}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                const result = await response.json();
+                generatedOutputId = result.output_id;
+                
+                // Fetch the generated letters
+                await fetchGeneratedLetters(generatedOutputId);
+                
+            } catch (error) {
+                console.error('Error generating letters:', error);
+                generateSpinner.style.display = 'none';
+                alert('Error generating letters: ' + error.message);
+            }
+        }
+        
+        // Fetch Generated Letters
+        async function fetchGeneratedLetters(outputId) {
+            try {
+                const response = await fetch(`${API_URL}/generated/${outputId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                generatedLetters = await response.json();
+                
+                // Update letter count
+                letterCount.textContent = generatedLetters.count;
+                
+                // Display letters table
+                displayLettersTable(generatedLetters.letters);
+                
+                // Hide spinner and show results
+                generateSpinner.style.display = 'none';
+                lettersContainer.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error fetching generated letters:', error);
+                generateSpinner.style.display = 'none';
+                alert('Error fetching generated letters: ' + error.message);
+            }
+        }
+        
+        // Display Letters Table
+        function displayLettersTable(letters, filter = 'all', searchTerm = '') {
+            // Clear existing rows
+            lettersTableBody.innerHTML = '';
+            
+            // Filter and search letters
+            const filteredLetters = letters.filter(letter => {
+                // Apply category filter
+                const categoryMatch = filter === 'all' || letter.category === filter;
+                
+                // Apply search term
+                let searchMatch = true;
+                if (searchTerm) {
+                    searchTerm = searchTerm.toLowerCase();
+                    searchMatch = letter.recipient && letter.recipient.toLowerCase().includes(searchTerm);
+                }
+                
+                return categoryMatch && searchMatch;
+            });
+            
+            // Create table rows
+            filteredLetters.forEach((letter, index) => {
+                const row = document.createElement('tr');
+                
+                // ID cell
+                const idCell = document.createElement('td');
+                idCell.textContent = index + 1;
+                
+                // Recipient cell
+                const recipientCell = document.createElement('td');
+                recipientCell.textContent = letter.recipient || 'Unknown';
+                
+                // Category cell
+                const categoryCell = document.createElement('td');
+                const categorySpan = document.createElement('span');
+                categorySpan.className = `category-cell category-${letter.category}`;
+                
+                switch (letter.category) {
+                    case 'owner':
+                        categorySpan.textContent = 'Owner';
+                        break;
+                    case 'renter':
+                        categorySpan.textContent = 'Renter';
+                        break;
+                    case 'investor':
+                        categorySpan.textContent = 'Investor';
+                        break;
+                    default:
+                        categorySpan.textContent = 'Unknown';
+                }
+                
+                categoryCell.appendChild(categorySpan);
+                
+                // Actions cell
+                const actionsCell = document.createElement('td');
+                
+                const previewBtn = document.createElement('button');
+                previewBtn.className = 'btn btn-outline btn-sm';
+                previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview';
+                previewBtn.addEventListener('click', () => previewLetter(letter));
+                
+                actionsCell.appendChild(previewBtn);
+                
+                // Append cells to row
+                row.appendChild(idCell);
+                row.appendChild(recipientCell);
+                row.appendChild(categoryCell);
+                row.appendChild(actionsCell);
+                
+                // Append row to table
+                lettersTableBody.appendChild(row);
+            });
+        }
+        
+        // Preview Letter
+        function previewLetter(letter) {
+            // Display the letter content in the preview section
+            letterPreview.innerHTML = `
+                <div class="letter-header">
+                    <h3>Letter to: ${letter.recipient}</h3>
+                    <span class="category-cell category-${letter.category}">
+                        ${letter.category.charAt(0).toUpperCase() + letter.category.slice(1)}
+                    </span>
+                </div>
+                <div class="letter-content">
+                    ${letter.content.replace(/\n/g, '<br>')}
+                </div>
+            `;
+            
+            // Show preview section
+            previewSection.style.display = 'block';
+            
+            // Scroll to preview
+            previewSection.scrollIntoView({behavior: 'smooth'});
+        }
+        
+        // Initialize Filters
+        function initFilters() {
+            // Search input
+            searchInput.addEventListener('input', () => {
+                if (generatedLetters) {
+                    displayLettersTable(
+                        generatedLetters.letters, 
+                        categoryFilter.value, 
+                        searchInput.value
+                    );
+                }
+            });
+            
+            // Category filter
+            categoryFilter.addEventListener('change', () => {
+                if (generatedLetters) {
+                    displayLettersTable(
+                        generatedLetters.letters, 
+                        categoryFilter.value, 
+                        searchInput.value
+                    );
+                }
+            });
+        }
+        
+        // PDF Generation using jsPDF (simplified for this example)
+        function initDownloadButtons() {
+            downloadPdfBtn.addEventListener('click', () => {
+                if (!generatedLetters) return;
+                
+                alert('PDF generation would be implemented with a library like jsPDF or by calling a server endpoint');
+                // In a real implementation, you would use jsPDF or another library to generate the PDF
+                // Or call a server endpoint that returns a PDF file
+            });
+            
+            downloadTextBtn.addEventListener('click', () => {
+                if (!generatedLetters) return;
+                
+                // Create text content
+                let textContent = `Generated Letters (${generatedLetters.count})\n\n`;
+                
+                generatedLetters.letters.forEach((letter, index) => {
+                    textContent += `--- Letter ${index + 1} (${letter.category}) ---\n`;
+                    textContent += `To: ${letter.recipient}\n\n`;
+                    textContent += `${letter.content}\n\n`;
+                    textContent += `----------------------------------\n\n`;
+                });
+                
+                // Create a download link
+                const blob = new Blob([textContent], {type: 'text/plain'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `letters_${new Date().toISOString().slice(0, 10)}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 0);
+            });
+        }
+        
+        // Initialize everything when DOM content is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            checkApiStatus();
+            initThemeToggle();
+            initSidebarToggle();
+            initModals();
+            loadDataFiles();
+            loadTemplates();
+            initFilters();
+            initDownloadButtons();
+            
+            // Generate button event listener
+            generateLettersBtn.addEventListener('click', generateLetters);
+            
+            // Close preview button
+            closePreviewBtn.addEventListener('click', () => {
+                previewSection.style.display = 'none';
+            });
+            
+            // Periodically check API status
+            setInterval(checkApiStatus, 30000); // Every 30 seconds
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,7 @@
+{
+  "id": "owner-template-001",
+  "name": "Owner-Occupied Property Letter",
+  "category": "owner",
+  "content": "Dear {{first_name}},\n\nMy name is [Your Name] and I'm writing regarding your home at {{property_address}}.\n\nI understand that this is your primary residence, and I wanted to reach out to see if you might be interested in discussing potential opportunities related to your property.\n\nAs someone who invests in the neighborhood, I'm always looking to connect with homeowners to understand their future plans and see if there are ways I can be of assistance.\n\nIf you have any interest in discussing your property, please feel free to contact me at [Your Phone Number] or [Your Email].\n\nThank you for your time.\n\nWarm regards,\n[Your Name]\n[Your Company]",
+  "created_at": "2023-05-01T12:01:00Z"
+} 

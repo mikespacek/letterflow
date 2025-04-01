@@ -1,0 +1,7 @@
+{
+  "id": "investor-template-001",
+  "name": "Investor Property Letter",
+  "category": "investor",
+  "content": "Dear {{full_name}},\n\nMy name is [Your Name] from [Your Company], and I'm reaching out regarding your investment property at {{property_address}}.\n\nAs a fellow real estate professional, I understand the importance of optimizing your investment portfolio. I've been active in the area and have noticed your property as part of my market research.\n\nI'd be interested in discussing potential joint ventures, acquisition opportunities, or sharing market insights that could benefit both of our investment strategies.\n\nIf you're interested in connecting, please reach out to me at [Your Phone Number] or [Your Email].\n\nI look forward to potentially collaborating.\n\nProfessionally yours,\n[Your Name]\n[Your Title]\n[Your Company]\n[Your Contact Information]",
+  "created_at": "2023-05-01T12:03:00Z"
+} 

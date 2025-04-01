@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Template Manager - Real Estate Letter Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-home"></i> RE Letter Gen</h2>
+                <button id="toggleSidebar" class="toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="index.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="csv-processor.html"><i class="fas fa-file-csv"></i> CSV Processor</a></li>
+                    <li><a href="letter-generator.html"><i class="fas fa-envelope"></i> Letter Generator</a></li>
+                    <li class="active"><a href="template-manager.html"><i class="fas fa-file-alt"></i> Template Manager</a></li>
+                    <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="api-status">
+                    <span>API Status:</span>
+                    <span id="apiStatus" class="status-indicator">Checking...</span>
+                </div>
+                <div class="theme-toggle">
+                    <label for="themeSwitch">Dark Mode</label>
+                    <input type="checkbox" id="themeSwitch">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content">
+            <header class="content-header">
+                <h1>Template Manager</h1>
+                <div class="user-actions">
+                    <button id="newTemplateBtn" class="btn btn-primary"><i class="fas fa-plus"></i> New Template</button>
+                    <button id="helpBtn" class="btn btn-outline"><i class="fas fa-question-circle"></i> Help</button>
+                </div>
+            </header>
+
+            <!-- Template List Section -->
+            <section id="templateListSection" class="template-list-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Letter Templates</h2>
+                    </div>
+                    <div class="card-body">
+                        <div id="templatesLoading" class="spinner"></div>
+                        <div id="noTemplatesAlert" class="alert alert-info" style="display: none;">
+                            <i class="fas fa-info-circle"></i> 
+                            No templates found. Click "New Template" to create your first letter template.
+                        </div>
+                        
+                        <div id="templatesTable" class="table-container" style="display: none;">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Category</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="templatesTableBody">
+                                    <!-- Data will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Template Editor Section -->
+            <section id="templateEditorSection" class="template-editor-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 id="editorTitle" class="card-title">New Template</h2>
+                        <button id="closeEditorBtn" class="btn btn-outline"><i class="fas fa-times"></i> Cancel</button>
+                    </div>
+                    <div class="card-body">
+                        <form id="templateForm">
+                            <div class="form-group">
+                                <label for="templateName" class="form-label">Template Name</label>
+                                <input type="text" id="templateName" class="form-control" placeholder="Enter template name" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="templateCategory" class="form-label">Target Category</label>
+                                <select id="templateCategory" class="form-select">
+                                    <option value="all">All Categories</option>
+                                    <option value="owner">Owner-Occupied</option>
+                                    <option value="renter">Renter-Occupied</option>
+                                    <option value="investor">Investor</option>
+                                </select>
+                            </div>
+                            
+                            <div class="template-editor">
+                                <div class="editor-sidebar">
+                                    <h3>Variables</h3>
+                                    <p class="text-muted">Click to insert into template</p>
+                                    
+                                    <h4>Name Variables</h4>
+                                    <div class="variable-list">
+                                        <div class="variable-item" data-variable="{{first_name}}">
+                                            <span>First Name</span>
+                                            <code>{{first_name}}</code>
+                                        </div>
+                                        <div class="variable-item" data-variable="{{last_name}}">
+                                            <span>Last Name</span>
+                                            <code>{{last_name}}</code>
+                                        </div>
+                                        <div class="variable-item" data-variable="{{full_name}}">
+                                            <span>Full Name</span>
+                                            <code>{{full_name}}</code>
+                                        </div>
+                                    </div>
+                                    
+                                    <h4>Property Variables</h4>
+                                    <div class="variable-list">
+                                        <div class="variable-item" data-variable="{{property_address}}">
+                                            <span>Property Address</span>
+                                            <code>{{property_address}}</code>
+                                        </div>
+                                        <div class="variable-item" data-variable="{{mailing_address}}">
+                                            <span>Mailing Address</span>
+                                            <code>{{mailing_address}}</code>
+                                        </div>
+                                    </div>
+                                    
+                                    <h4>Other Variables</h4>
+                                    <div class="variable-list">
+                                        <div class="variable-item" data-variable="{{current_date}}">
+                                            <span>Current Date</span>
+                                            <code>{{current_date}}</code>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="editor-main">
+                                    <div class="form-group">
+                                        <label for="templateContent" class="form-label">Template Content</label>
+                                        <textarea id="templateContent" class="form-control" rows="15" placeholder="Enter your letter template here..." required></textarea>
+                                    </div>
+                                    
+                                    <div class="template-preview">
+                                        <h4>Preview</h4>
+                                        <div id="previewContent"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="submit" id="saveTemplateBtn" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Template
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for Help -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Template Manager Help</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h3>Creating Templates</h3>
+                <p>Templates are used to generate personalized letters for property owners. Use variables to insert dynamic content.</p>
+                
+                <h3>Available Variables</h3>
+                <p>You can use the following variables in your templates:</p>
+                <ul>
+                    <li><code>{{first_name}}</code> - The recipient's first name</li>
+                    <li><code>{{last_name}}</code> - The recipient's last name</li>
+                    <li><code>{{full_name}}</code> - The recipient's full name</li>
+                    <li><code>{{property_address}}</code> - The property address</li>
+                    <li><code>{{mailing_address}}</code> - The owner's mailing address</li>
+                    <li><code>{{current_date}}</code> - The current date</li>
+                </ul>
+                
+                <h3>Template Categories</h3>
+                <p>You can create templates for specific property categories:</p>
+                <ul>
+                    <li><strong>All Categories</strong> - Template can be used for any property</li>
+                    <li><strong>Owner-Occupied</strong> - Specifically for owner-occupied properties</li>
+                    <li><strong>Renter-Occupied</strong> - Specifically for renter-occupied properties</li>
+                    <li><strong>Investor</strong> - Specifically for investor-owned properties</li>
+                </ul>
+                
+                <h3>Tips for Effective Templates</h3>
+                <ul>
+                    <li>Address different categories with relevant messaging</li>
+                    <li>Use personalization with name variables</li>
+                    <li>Keep letters concise and focused on your goal</li>
+                    <li>Test your templates with preview before generating letters</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Delete Confirmation -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm Delete</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the template "<span id="deleteTemplateName"></span>"?</p>
+                <p>This action cannot be undone.</p>
+                
+                <div class="modal-actions">
+                    <button id="cancelDeleteBtn" class="btn btn-outline">Cancel</button>
+                    <button id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_URL = 'http://localhost:3006';
+        let templates = [];
+        let currentTemplateId = null;
+        
+        // DOM Elements
+        const templateListSection = document.getElementById('templateListSection');
+        const templateEditorSection = document.getElementById('templateEditorSection');
+        const templatesLoading = document.getElementById('templatesLoading');
+        const noTemplatesAlert = document.getElementById('noTemplatesAlert');
+        const templatesTable = document.getElementById('templatesTable');
+        const templatesTableBody = document.getElementById('templatesTableBody');
+        const newTemplateBtn = document.getElementById('newTemplateBtn');
+        const closeEditorBtn = document.getElementById('closeEditorBtn');
+        const editorTitle = document.getElementById('editorTitle');
+        const templateForm = document.getElementById('templateForm');
+        const templateName = document.getElementById('templateName');
+        const templateCategory = document.getElementById('templateCategory');
+        const templateContent = document.getElementById('templateContent');
+        const previewContent = document.getElementById('previewContent');
+        const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+        
+        // Check API Status
+        async function checkApiStatus() {
+            const statusElement = document.getElementById('apiStatus');
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    statusElement.textContent = 'Online';
+                    statusElement.className = 'status-indicator online';
+                } else {
+                    statusElement.textContent = 'Error';
+                    statusElement.className = 'status-indicator error';
+                }
+            } catch (error) {
+                statusElement.textContent = 'Offline';
+                statusElement.className = 'status-indicator offline';
+            }
+        }
+        
+        // Theme Toggle
+        function initThemeToggle() {
+            const themeSwitch = document.getElementById('themeSwitch');
+            
+            // Check for saved theme preference or respect OS preference
+            const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const savedTheme = localStorage.getItem('theme');
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDarkMode)) {
+                document.body.classList.add('dark-mode');
+                themeSwitch.checked = true;
+            }
+            
+            // Toggle theme when switch changes
+            themeSwitch.addEventListener('change', function() {
+                if (this.checked) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+        }
+        
+        // Sidebar Toggle for Mobile
+        function initSidebarToggle() {
+            const toggleBtn = document.getElementById('toggleSidebar');
+            const sidebar = document.querySelector('.sidebar');
+            
+            toggleBtn.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+        
+        // Modal Controls
+        function initModals() {
+            // Help Modal
+            const helpModal = document.getElementById('helpModal');
+            const helpBtn = document.getElementById('helpBtn');
+            const helpCloseBtn = helpModal.querySelector('.close');
+            
+            helpBtn.addEventListener('click', function() {
+                helpModal.style.display = 'block';
+            });
+            
+            helpCloseBtn.addEventListener('click', function() {
+                helpModal.style.display = 'none';
+            });
+            
+            // Delete Modal
+            const deleteModal = document.getElementById('deleteModal');
+            const deleteCloseBtn = deleteModal.querySelector('.close');
+            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+            
+            deleteCloseBtn.addEventListener('click', function() {
+                deleteModal.style.display = 'none';
+            });
+            
+            cancelDeleteBtn.addEventListener('click', function() {
+                deleteModal.style.display = 'none';
+            });
+            
+            // Close modals when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target === helpModal) {
+                    helpModal.style.display = 'none';
+                } else if (event.target === deleteModal) {
+                    deleteModal.style.display = 'none';
+                }
+            });
+        }
+        
+        // Load Templates
+        async function loadTemplates() {
+            try {
+                templatesLoading.style.display = 'block';
+                noTemplatesAlert.style.display = 'none';
+                templatesTable.style.display = 'none';
+                
+                const response = await fetch(`${API_URL}/templates`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                templates = await response.json();
+                
+                // Display templates
+                displayTemplates(templates);
+                
+            } catch (error) {
+                console.error('Error loading templates:', error);
+                templatesLoading.style.display = 'none';
+                noTemplatesAlert.textContent = 'Error loading templates: ' + error.message;
+                noTemplatesAlert.className = 'alert alert-danger';
+                noTemplatesAlert.style.display = 'block';
+            }
+        }
+        
+        // Display Templates
+        function displayTemplates(templates) {
+            templatesLoading.style.display = 'none';
+            
+            if (templates.length === 0) {
+                noTemplatesAlert.style.display = 'block';
+                templatesTable.style.display = 'none';
+                return;
+            }
+            
+            // Clear existing rows
+            templatesTableBody.innerHTML = '';
+            
+            // Create table rows
+            templates.forEach(template => {
+                const row = document.createElement('tr');
+                
+                // Name cell
+                const nameCell = document.createElement('td');
+                nameCell.textContent = template.name;
+                
+                // Category cell
+                const categoryCell = document.createElement('td');
+                let categoryText = 'All Categories';
+                
+                switch (template.category) {
+                    case 'owner':
+                        categoryText = 'Owner-Occupied';
+                        break;
+                    case 'renter':
+                        categoryText = 'Renter-Occupied';
+                        break;
+                    case 'investor':
+                        categoryText = 'Investor';
+                        break;
+                }
+                
+                categoryCell.textContent = categoryText;
+                
+                // Created date cell
+                const createdCell = document.createElement('td');
+                const createdDate = new Date(template.created_at);
+                createdCell.textContent = createdDate.toLocaleDateString();
+                
+                // Actions cell
+                const actionsCell = document.createElement('td');
+                
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-outline btn-sm';
+                editBtn.innerHTML = '<i class="fas fa-edit"></i> Edit';
+                editBtn.addEventListener('click', () => editTemplate(template.id));
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-danger btn-sm';
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+                deleteBtn.addEventListener('click', () => confirmDeleteTemplate(template.id, template.name));
+                
+                actionsCell.appendChild(editBtn);
+                actionsCell.appendChild(document.createTextNode(' '));
+                actionsCell.appendChild(deleteBtn);
+                
+                // Append cells to row
+                row.appendChild(nameCell);
+                row.appendChild(categoryCell);
+                row.appendChild(createdCell);
+                row.appendChild(actionsCell);
+                
+                // Append row to table
+                templatesTableBody.appendChild(row);
+            });
+            
+            // Show table
+            templatesTable.style.display = 'block';
+        }
+        
+        // Show Editor for New Template
+        function showNewTemplateEditor() {
+            // Clear form
+            templateForm.reset();
+            templateContent.value = 'Dear {{first_name}},\n\nThank you for your time. I noticed your property at {{property_address}} and wanted to reach out.\n\nPlease contact me at your convenience.\n\nSincerely,\nYour Name';
+            updatePreview();
+            
+            // Set editor mode
+            currentTemplateId = null;
+            editorTitle.textContent = 'New Template';
+            
+            // Show editor, hide list
+            templateListSection.style.display = 'none';
+            templateEditorSection.style.display = 'block';
+        }
+        
+        // Edit Template
+        async function editTemplate(templateId) {
+            try {
+                const response = await fetch(`${API_URL}/templates/${templateId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                const template = await response.json();
+                
+                // Fill form
+                templateName.value = template.name;
+                templateCategory.value = template.category;
+                templateContent.value = template.content;
+                updatePreview();
+                
+                // Set editor mode
+                currentTemplateId = templateId;
+                editorTitle.textContent = 'Edit Template';
+                
+                // Show editor, hide list
+                templateListSection.style.display = 'none';
+                templateEditorSection.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading template:', error);
+                alert('Error loading template: ' + error.message);
+            }
+        }
+        
+        // Save Template
+        async function saveTemplate(event) {
+            event.preventDefault();
+            
+            const templateData = {
+                name: templateName.value,
+                category: templateCategory.value,
+                content: templateContent.value
+            };
+            
+            try {
+                let response;
+                
+                if (currentTemplateId) {
+                    // Update existing template
+                    response = await fetch(`${API_URL}/templates/${currentTemplateId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(templateData)
+                    });
+                } else {
+                    // Create new template
+                    response = await fetch(`${API_URL}/templates`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(templateData)
+                    });
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                // Reload templates and show list
+                await loadTemplates();
+                templateListSection.style.display = 'block';
+                templateEditorSection.style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error saving template:', error);
+                alert('Error saving template: ' + error.message);
+            }
+        }
+        
+        // Confirm Delete Template
+        function confirmDeleteTemplate(templateId, templateName) {
+            document.getElementById('deleteTemplateName').textContent = templateName;
+            
+            // Set up confirmation button
+            const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+            confirmDeleteBtn.onclick = () => deleteTemplate(templateId);
+            
+            // Show modal
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+        
+        // Delete Template
+        async function deleteTemplate(templateId) {
+            try {
+                const response = await fetch(`${API_URL}/templates/${templateId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                // Hide modal
+                document.getElementById('deleteModal').style.display = 'none';
+                
+                // Reload templates
+                await loadTemplates();
+                
+            } catch (error) {
+                console.error('Error deleting template:', error);
+                alert('Error deleting template: ' + error.message);
+                document.getElementById('deleteModal').style.display = 'none';
+            }
+        }
+        
+        // Update Preview
+        function updatePreview() {
+            let previewText = templateContent.value;
+            
+            // Replace variables with example values
+            previewText = previewText.replace(/{{first_name}}/g, 'John');
+            previewText = previewText.replace(/{{last_name}}/g, 'Smith');
+            previewText = previewText.replace(/{{full_name}}/g, 'John Smith');
+            previewText = previewText.replace(/{{property_address}}/g, '123 Main St, Anytown, USA');
+            previewText = previewText.replace(/{{mailing_address}}/g, '456 Oak Ave, Somewhere, USA');
+            previewText = previewText.replace(/{{current_date}}/g, new Date().toLocaleDateString());
+            
+            // Display with line breaks
+            previewContent.innerHTML = previewText.replace(/\n/g, '<br>');
+        }
+        
+        // Insert Variable at Cursor Position
+        function insertVariableAtCursor(variable) {
+            const startPos = templateContent.selectionStart;
+            const endPos = templateContent.selectionEnd;
+            const text = templateContent.value;
+            const newText = text.substring(0, startPos) + variable + text.substring(endPos);
+            
+            templateContent.value = newText;
+            templateContent.focus();
+            templateContent.selectionStart = startPos + variable.length;
+            templateContent.selectionEnd = startPos + variable.length;
+            
+            updatePreview();
+        }
+        
+        // Initialize Variable Insertion
+        function initVariableInsertion() {
+            const variableItems = document.querySelectorAll('.variable-item');
+            
+            variableItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const variable = this.getAttribute('data-variable');
+                    insertVariableAtCursor(variable);
+                });
+            });
+        }
+        
+        // Initialize everything when DOM content is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            checkApiStatus();
+            initThemeToggle();
+            initSidebarToggle();
+            initModals();
+            loadTemplates();
+            initVariableInsertion();
+            
+            // New template button
+            newTemplateBtn.addEventListener('click', showNewTemplateEditor);
+            
+            // Close editor button
+            closeEditorBtn.addEventListener('click', function() {
+                templateListSection.style.display = 'block';
+                templateEditorSection.style.display = 'none';
+            });
+            
+            // Save template form
+            templateForm.addEventListener('submit', saveTemplate);
+            
+            // Preview updates
+            templateContent.addEventListener('input', updatePreview);
+            
+            // Periodically check API status
+            setInterval(checkApiStatus, 30000); // Every 30 seconds
+        });
+    </script>
+</body>
+</html> 

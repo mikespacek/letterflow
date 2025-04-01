@@ -1,0 +1,7 @@
+{
+  "id": "distressed-template-001",
+  "name": "Distressed Property Letter",
+  "category": "distressed",
+  "content": "Dear {{first_name}},\n\nMy name is [Your Name] with [Your Company]. I'm reaching out regarding your property at {{property_address}}.\n\nI understand that challenging circumstances can sometimes make property ownership difficult. As a real estate investor specializing in providing solutions for homeowners in complex situations, I may be able to offer assistance.\n\nI can provide:\n\n• A fair, all-cash offer\n• Quick closing (as little as 7-14 days)\n• No repairs or cleaning required\n• No commission or fees\n• Flexible moving timeline\n• Assistance with relocation if needed\n\nWhether you're facing foreclosure, tax issues, costly repairs, probate complications, or any other challenging situation, I'm here to listen and potentially provide options that could help alleviate your stress.\n\nThere's no obligation to sell, and all discussions remain completely confidential. I'm simply reaching out to offer potential solutions that might be beneficial to your situation.\n\nIf you'd like to discuss your options, please contact me directly at [Your Phone Number] or [Your Email].\n\nRespectfully,\n[Your Name]\n[Your Company]",
+  "created_at": "2023-05-01T12:05:00Z"
+} 

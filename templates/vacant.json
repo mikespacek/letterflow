@@ -1,0 +1,7 @@
+{
+  "id": "vacant-template-001",
+  "name": "Vacant Property Letter",
+  "category": "vacant",
+  "content": "Dear {{first_name}},\n\nMy name is [Your Name] with [Your Company], and I'm writing regarding your vacant property at {{property_address}}.\n\nI've noticed that this property has been unoccupied for some time, and I wanted to reach out to express my interest in potentially purchasing it. As a real estate investor specializing in revitalizing vacant properties, I can offer a straightforward process with the following benefits:\n\n• Cash offer with no financing contingencies\n• Flexible closing timeline to accommodate your needs\n• Purchase in as-is condition - no repairs or cleanup required\n• Coverage of all closing costs\n\nVacant properties can become a financial burden with ongoing maintenance, taxes, insurance, and potential liability issues. I'd be happy to discuss how I might be able to take this responsibility off your hands while providing you with a fair value for the property.\n\nPlease contact me at [Your Phone Number] or [Your Email] if you're interested in exploring this opportunity further.\n\nThank you for your consideration.\n\nSincerely,\n[Your Name]\n[Your Company]",
+  "created_at": "2023-05-01T12:04:00Z"
+} 

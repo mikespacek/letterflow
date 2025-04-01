@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics - Real Estate Letter Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-home"></i> RE Letter Gen</h2>
+                <button id="toggleSidebar" class="toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="index.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="csv-processor.html"><i class="fas fa-file-csv"></i> CSV Processor</a></li>
+                    <li><a href="letter-generator.html"><i class="fas fa-envelope"></i> Letter Generator</a></li>
+                    <li><a href="template-manager.html"><i class="fas fa-file-alt"></i> Template Manager</a></li>
+                    <li class="active"><a href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="api-status">
+                    <span>API Status:</span>
+                    <span id="apiStatus" class="status-indicator">Checking...</span>
+                </div>
+                <div class="theme-toggle">
+                    <label for="themeSwitch">Dark Mode</label>
+                    <input type="checkbox" id="themeSwitch">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content">
+            <header class="content-header">
+                <h1>Analytics Dashboard</h1>
+                <div class="user-actions">
+                    <select id="dataFileSelect" class="form-select">
+                        <option value="">-- Select Data File --</option>
+                    </select>
+                    <button id="helpBtn" class="btn btn-outline"><i class="fas fa-question-circle"></i> Help</button>
+                </div>
+            </header>
+
+            <div id="noDataAlert" class="alert alert-warning" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i> 
+                No property data found. Please <a href="csv-processor.html">upload and process a CSV file</a> first.
+            </div>
+
+            <div id="analyticsContent" style="display: none;">
+                <!-- Property Category Distribution -->
+                <section class="stats-overview-section">
+                    <div class="stats-container">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalCount">0</div>
+                            <div class="stat-label">Total Properties</div>
+                        </div>
+                        <div class="stat-card category-owner">
+                            <div class="stat-value" id="ownerCount">0</div>
+                            <div class="stat-label">Owner-Occupied</div>
+                        </div>
+                        <div class="stat-card category-renter">
+                            <div class="stat-value" id="renterCount">0</div>
+                            <div class="stat-label">Renter-Occupied</div>
+                        </div>
+                        <div class="stat-card category-investor">
+                            <div class="stat-value" id="investorCount">0</div>
+                            <div class="stat-label">Investor Properties</div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="chart-grid">
+                    <!-- Property Category Distribution Chart -->
+                    <section class="chart-section">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Property Category Distribution</h2>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="categoriesChart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Confidence Distribution Chart -->
+                    <section class="chart-section">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2 class="card-title">Categorization Confidence</h2>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="confidenceChart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Name Parsing Analysis -->
+                <section class="chart-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Name Analysis</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-grid-2">
+                                <div>
+                                    <canvas id="businessChart"></canvas>
+                                </div>
+                                <div>
+                                    <canvas id="nameFormatChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Top Properties Table -->
+                <section class="data-table-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Property Data Overview</h2>
+                            <div class="card-actions">
+                                <select id="categoryFilterTable" class="form-select">
+                                    <option value="all">All Categories</option>
+                                    <option value="owner">Owner-Occupied</option>
+                                    <option value="renter">Renter-Occupied</option>
+                                    <option value="investor">Investor</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Owner Name</th>
+                                            <th>Property Address</th>
+                                            <th>Category</th>
+                                            <th>Confidence</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="propertiesTableBody">
+                                        <!-- Data will be populated by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Help -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Analytics Help</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h3>Analytics Dashboard</h3>
+                <p>The Analytics Dashboard provides visualizations and insights into your property data.</p>
+                
+                <h3>Property Categories</h3>
+                <p>Properties are automatically categorized as:</p>
+                <ul>
+                    <li><strong class="category-owner">Owner-Occupied</strong>: Property address matches mailing address</li>
+                    <li><strong class="category-renter">Renter-Occupied</strong>: Property address differs from mailing address</li>
+                    <li><strong class="category-investor">Investor</strong>: Entity owns multiple properties or has business indicators</li>
+                </ul>
+                
+                <h3>Confidence Scores</h3>
+                <p>Each categorization has a confidence score indicating how certain the system is about the classification:</p>
+                <ul>
+                    <li><strong>High (>0.8)</strong>: Very confident in the classification</li>
+                    <li><strong>Medium (0.6-0.8)</strong>: Reasonably confident</li>
+                    <li><strong>Low (<0.6)</strong>: Less confident, may need manual review</li>
+                </ul>
+                
+                <h3>Name Analysis</h3>
+                <p>This shows the distribution of business entities vs. individual owners, and different name formats detected in your data.</p>
+                
+                <h3>Filtering Data</h3>
+                <p>Use the dropdown at the top to select different processed files, and the category filter to view specific property types.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_URL = 'http://localhost:3006';
+        let processedData = null;
+        let charts = {};
+        
+        // DOM Elements
+        const dataFileSelect = document.getElementById('dataFileSelect');
+        const noDataAlert = document.getElementById('noDataAlert');
+        const analyticsContent = document.getElementById('analyticsContent');
+        const totalCount = document.getElementById('totalCount');
+        const ownerCount = document.getElementById('ownerCount');
+        const renterCount = document.getElementById('renterCount');
+        const investorCount = document.getElementById('investorCount');
+        const categoryFilterTable = document.getElementById('categoryFilterTable');
+        const propertiesTableBody = document.getElementById('propertiesTableBody');
+        
+        // Check API Status
+        async function checkApiStatus() {
+            const statusElement = document.getElementById('apiStatus');
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    statusElement.textContent = 'Online';
+                    statusElement.className = 'status-indicator online';
+                } else {
+                    statusElement.textContent = 'Error';
+                    statusElement.className = 'status-indicator error';
+                }
+            } catch (error) {
+                statusElement.textContent = 'Offline';
+                statusElement.className = 'status-indicator offline';
+            }
+        }
+        
+        // Theme Toggle
+        function initThemeToggle() {
+            const themeSwitch = document.getElementById('themeSwitch');
+            
+            // Check for saved theme preference or respect OS preference
+            const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const savedTheme = localStorage.getItem('theme');
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDarkMode)) {
+                document.body.classList.add('dark-mode');
+                themeSwitch.checked = true;
+            }
+            
+            // Toggle theme when switch changes
+            themeSwitch.addEventListener('change', function() {
+                if (this.checked) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('theme', 'light');
+                }
+                
+                // Update charts for the new theme
+                updateChartsTheme();
+            });
+        }
+        
+        // Update Charts Theme
+        function updateChartsTheme() {
+            const isDarkMode = document.body.classList.contains('dark-mode');
+            const textColor = isDarkMode ? '#e2e8f0' : '#2d3748';
+            const gridColor = isDarkMode ? '#4a5568' : '#e2e8f0';
+            
+            // Update global Chart.js defaults
+            Chart.defaults.color = textColor;
+            Chart.defaults.borderColor = gridColor;
+            
+            // Update each chart
+            Object.values(charts).forEach(chart => {
+                if (chart) {
+                    chart.options.scales.x.ticks.color = textColor;
+                    chart.options.scales.y.ticks.color = textColor;
+                    chart.options.scales.x.grid.color = gridColor;
+                    chart.options.scales.y.grid.color = gridColor;
+                    chart.update();
+                }
+            });
+        }
+        
+        // Sidebar Toggle for Mobile
+        function initSidebarToggle() {
+            const toggleBtn = document.getElementById('toggleSidebar');
+            const sidebar = document.querySelector('.sidebar');
+            
+            toggleBtn.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+        
+        // Modal Controls
+        function initModals() {
+            // Help Modal
+            const helpModal = document.getElementById('helpModal');
+            const helpBtn = document.getElementById('helpBtn');
+            const closeBtn = helpModal.querySelector('.close');
+            
+            helpBtn.addEventListener('click', function() {
+                helpModal.style.display = 'block';
+            });
+            
+            closeBtn.addEventListener('click', function() {
+                helpModal.style.display = 'none';
+            });
+            
+            window.addEventListener('click', function(event) {
+                if (event.target === helpModal) {
+                    helpModal.style.display = 'none';
+                }
+            });
+        }
+        
+        // Load Data Files
+        async function loadDataFiles() {
+            try {
+                // For this demo, we'll just load from localStorage
+                // In a real implementation, you'd fetch a list of processed files from the API
+                const lastFileId = localStorage.getItem('lastProcessedFileId');
+                
+                if (lastFileId) {
+                    const response = await fetch(`${API_URL}/processed/${lastFileId}`);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Add option to select
+                        const option = document.createElement('option');
+                        option.value = lastFileId;
+                        option.textContent = `${data.filename} (${data.processed_at.slice(0, 10)})`;
+                        dataFileSelect.appendChild(option);
+                        
+                        // Select it and load data
+                        dataFileSelect.value = lastFileId;
+                        loadFileData(lastFileId);
+                    } else {
+                        showNoDataAlert();
+                    }
+                } else {
+                    showNoDataAlert();
+                }
+            } catch (error) {
+                console.error('Error loading data files:', error);
+                showNoDataAlert();
+            }
+        }
+        
+        // Show No Data Alert
+        function showNoDataAlert() {
+            noDataAlert.style.display = 'block';
+            analyticsContent.style.display = 'none';
+        }
+        
+        // Load File Data
+        async function loadFileData(fileId) {
+            try {
+                const response = await fetch(`${API_URL}/processed/${fileId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                processedData = await response.json();
+                
+                // Update UI with data
+                updateDashboard(processedData);
+                
+            } catch (error) {
+                console.error('Error loading file data:', error);
+                showNoDataAlert();
+            }
+        }
+        
+        // Update Dashboard with Data
+        function updateDashboard(data) {
+            // Update stats
+            totalCount.textContent = data.stats.total;
+            ownerCount.textContent = data.stats.owner_occupied;
+            renterCount.textContent = data.stats.renter_occupied;
+            investorCount.textContent = data.stats.investor;
+            
+            // Create/update charts
+            createCategoryChart(data);
+            createConfidenceChart(data);
+            createNameAnalysisCharts(data);
+            
+            // Update properties table
+            updatePropertiesTable(data.data, 'all');
+            
+            // Show analytics content
+            noDataAlert.style.display = 'none';
+            analyticsContent.style.display = 'block';
+        }
+        
+        // Create Category Distribution Chart
+        function createCategoryChart(data) {
+            const ctx = document.getElementById('categoriesChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (charts.categories) {
+                charts.categories.destroy();
+            }
+            
+            // Create dataset
+            const categories = [
+                { label: 'Owner-Occupied', count: data.stats.owner_occupied, color: '#28a745' },
+                { label: 'Renter-Occupied', count: data.stats.renter_occupied, color: '#17a2b8' },
+                { label: 'Investor', count: data.stats.investor, color: '#9c27b0' },
+                { label: 'Unknown', count: data.stats.unknown, color: '#6c757d' }
+            ];
+            
+            // Create chart
+            charts.categories = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories.map(c => c.label),
+                    datasets: [{
+                        data: categories.map(c => c.count),
+                        backgroundColor: categories.map(c => c.color),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create Confidence Distribution Chart
+        function createConfidenceChart(data) {
+            const ctx = document.getElementById('confidenceChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (charts.confidence) {
+                charts.confidence.destroy();
+            }
+            
+            // Calculate confidence distributions
+            const confidenceRanges = {
+                'High (>0.8)': 0,
+                'Medium (0.6-0.8)': 0,
+                'Low (<0.6)': 0
+            };
+            
+            data.data.forEach(item => {
+                if (item.confidence > 0.8) {
+                    confidenceRanges['High (>0.8)']++;
+                } else if (item.confidence >= 0.6) {
+                    confidenceRanges['Medium (0.6-0.8)']++;
+                } else {
+                    confidenceRanges['Low (<0.6)']++;
+                }
+            });
+            
+            // Create chart
+            charts.confidence = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(confidenceRanges),
+                    datasets: [{
+                        label: 'Number of Properties',
+                        data: Object.values(confidenceRanges),
+                        backgroundColor: [
+                            'rgba(40, 167, 69, 0.7)',
+                            'rgba(255, 193, 7, 0.7)',
+                            'rgba(220, 53, 69, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgb(40, 167, 69)',
+                            'rgb(255, 193, 7)',
+                            'rgb(220, 53, 69)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Properties'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Confidence Level'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create Name Analysis Charts
+        function createNameAnalysisCharts(data) {
+            // Business vs Individual Chart
+            const businessCtx = document.getElementById('businessChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (charts.business) {
+                charts.business.destroy();
+            }
+            
+            // Calculate business vs individual counts
+            const businessCount = data.data.filter(item => 
+                item.name_parsed && item.name_parsed.is_business
+            ).length;
+            
+            const individualCount = data.data.filter(item => 
+                item.name_parsed && !item.name_parsed.is_business
+            ).length;
+            
+            // Create chart
+            charts.business = new Chart(businessCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Individual Owners', 'Business Entities'],
+                    datasets: [{
+                        data: [individualCount, businessCount],
+                        backgroundColor: [
+                            'rgba(23, 162, 184, 0.7)',
+                            'rgba(156, 39, 176, 0.7)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Business vs Individual Owners'
+                        }
+                    }
+                }
+            });
+            
+            // Name Format Chart
+            const nameFormatCtx = document.getElementById('nameFormatChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (charts.nameFormat) {
+                charts.nameFormat.destroy();
+            }
+            
+            // Count different name formats
+            const nameFormats = {
+                'Last, First': 0,
+                'First Last': 0,
+                'Multiple Names': 0,
+                'Single Word': 0
+            };
+            
+            data.data.forEach(item => {
+                if (!item.name_parsed || item.name_parsed.is_business) return;
+                
+                const original = item.name_parsed.original || '';
+                
+                if (original.includes(',')) {
+                    nameFormats['Last, First']++;
+                } else if (original.includes('&') || original.includes(' and ')) {
+                    nameFormats['Multiple Names']++;
+                } else if (original.includes(' ')) {
+                    nameFormats['First Last']++;
+                } else {
+                    nameFormats['Single Word']++;
+                }
+            });
+            
+            // Create chart
+            charts.nameFormat = new Chart(nameFormatCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(nameFormats),
+                    datasets: [{
+                        label: 'Count',
+                        data: Object.values(nameFormats),
+                        backgroundColor: 'rgba(74, 111, 220, 0.7)',
+                        borderColor: 'rgb(74, 111, 220)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Name Format Distribution'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Count'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update Properties Table
+        function updatePropertiesTable(properties, categoryFilter) {
+            // Clear existing rows
+            propertiesTableBody.innerHTML = '';
+            
+            // Filter by category if needed
+            const filteredProperties = categoryFilter === 'all'
+                ? properties
+                : properties.filter(p => p.category === categoryFilter);
+            
+            // Show only first 20 properties for performance
+            const displayProperties = filteredProperties.slice(0, 20);
+            
+            // Create table rows
+            displayProperties.forEach((property, index) => {
+                const row = document.createElement('tr');
+                
+                // ID cell
+                const idCell = document.createElement('td');
+                idCell.textContent = index + 1;
+                
+                // Owner Name cell
+                const nameCell = document.createElement('td');
+                nameCell.textContent = property.name_parsed.original || 'N/A';
+                
+                // Property Address cell
+                const addressCell = document.createElement('td');
+                addressCell.textContent = getPropertyAddress(property.data) || 'N/A';
+                
+                // Category cell
+                const categoryCell = document.createElement('td');
+                const categorySpan = document.createElement('span');
+                categorySpan.className = `category-cell category-${property.category}`;
+                
+                switch (property.category) {
+                    case 'owner':
+                        categorySpan.textContent = 'Owner';
+                        break;
+                    case 'renter':
+                        categorySpan.textContent = 'Renter';
+                        break;
+                    case 'investor':
+                        categorySpan.textContent = 'Investor';
+                        break;
+                    default:
+                        categorySpan.textContent = 'Unknown';
+                }
+                
+                categoryCell.appendChild(categorySpan);
+                
+                // Confidence cell
+                const confidenceCell = document.createElement('td');
+                const confidence = Math.round(property.confidence * 100) + '%';
+                
+                let confidenceClass = '';
+                if (property.confidence > 0.8) {
+                    confidenceClass = 'text-success';
+                } else if (property.confidence >= 0.6) {
+                    confidenceClass = 'text-warning';
+                } else {
+                    confidenceClass = 'text-danger';
+                }
+                
+                confidenceCell.textContent = confidence;
+                confidenceCell.className = confidenceClass;
+                
+                // Append cells to row
+                row.appendChild(idCell);
+                row.appendChild(nameCell);
+                row.appendChild(addressCell);
+                row.appendChild(categoryCell);
+                row.appendChild(confidenceCell);
+                
+                // Append row to table
+                propertiesTableBody.appendChild(row);
+            });
+            
+            // Add a message if more than 20 properties
+            if (filteredProperties.length > 20) {
+                const row = document.createElement('tr');
+                const cell = document.createElement('td');
+                cell.colSpan = 5;
+                cell.className = 'text-center text-muted';
+                cell.textContent = `Showing 20 of ${filteredProperties.length} properties`;
+                row.appendChild(cell);
+                propertiesTableBody.appendChild(row);
+            }
+        }
+        
+        // Helper function to get property address from various column names
+        function getPropertyAddress(data) {
+            const propertyAddressCols = [
+                'property_address', 'property_addr', 'situs_address', 'site_address', 
+                'address', 'prop_address'
+            ];
+            
+            for (const col of propertyAddressCols) {
+                if (data[col]) {
+                    return data[col];
+                }
+            }
+            
+            return '';
+        }
+        
+        // Initialize everything when DOM content is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            checkApiStatus();
+            initThemeToggle();
+            initSidebarToggle();
+            initModals();
+            loadDataFiles();
+            
+            // Listen for data file selection change
+            dataFileSelect.addEventListener('change', function() {
+                const fileId = this.value;
+                if (fileId) {
+                    loadFileData(fileId);
+                }
+            });
+            
+            // Listen for category filter change
+            categoryFilterTable.addEventListener('change', function() {
+                if (processedData) {
+                    updatePropertiesTable(processedData.data, this.value);
+                }
+            });
+            
+            // Periodically check API status
+            setInterval(checkApiStatus, 30000); // Every 30 seconds
+        });
+    </script>
+</body>
+</html> 

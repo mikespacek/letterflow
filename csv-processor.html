@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Processor - Real Estate Letter Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-home"></i> RE Letter Gen</h2>
+                <button id="toggleSidebar" class="toggle-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="index.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li class="active"><a href="csv-processor.html"><i class="fas fa-file-csv"></i> CSV Processor</a></li>
+                    <li><a href="letter-generator.html"><i class="fas fa-envelope"></i> Letter Generator</a></li>
+                    <li><a href="template-manager.html"><i class="fas fa-file-alt"></i> Template Manager</a></li>
+                    <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> Analytics</a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="api-status">
+                    <span>API Status:</span>
+                    <span id="apiStatus" class="status-indicator">Checking...</span>
+                </div>
+                <div class="theme-toggle">
+                    <label for="themeSwitch">Dark Mode</label>
+                    <input type="checkbox" id="themeSwitch">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content">
+            <header class="content-header">
+                <h1>CSV Processor</h1>
+                <div class="user-actions">
+                    <button id="helpBtn" class="btn btn-outline"><i class="fas fa-question-circle"></i> Help</button>
+                    <button id="settingsBtn" class="btn btn-outline"><i class="fas fa-cog"></i> Settings</button>
+                </div>
+            </header>
+
+            <section class="file-upload-section">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Upload Property Data</h2>
+                    </div>
+                    <div class="card-body">
+                        <div id="uploadContainer" class="file-upload-container">
+                            <input type="file" id="csvFileInput" accept=".csv" hidden>
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <h3>Drag & Drop your CSV file here</h3>
+                            <p>or click to browse</p>
+                            <p class="text-muted">Supported format: CSV</p>
+                        </div>
+                        <div id="uploadProgress" class="progress mt-3" style="display: none;">
+                            <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="uploadError" class="alert alert-danger mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="processingSection" class="processing-section" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Processing Results</h2>
+                        <div>
+                            <button id="downloadResultsBtn" class="btn btn-primary"><i class="fas fa-download"></i> Download Results</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="processingSpinner" class="spinner"></div>
+                        
+                        <div id="statsContainer" class="stats-container" style="display: none;">
+                            <div class="stat-card">
+                                <div class="stat-value" id="totalCount">0</div>
+                                <div class="stat-label">Total Properties</div>
+                            </div>
+                            <div class="stat-card category-owner">
+                                <div class="stat-value" id="ownerCount">0</div>
+                                <div class="stat-label">Owner-Occupied</div>
+                            </div>
+                            <div class="stat-card category-renter">
+                                <div class="stat-value" id="renterCount">0</div>
+                                <div class="stat-label">Renter-Occupied</div>
+                            </div>
+                            <div class="stat-card category-investor">
+                                <div class="stat-value" id="investorCount">0</div>
+                                <div class="stat-label">Investor Properties</div>
+                            </div>
+                        </div>
+
+                        <div class="table-controls">
+                            <div class="search-box">
+                                <input type="text" id="searchInput" class="form-control" placeholder="Search...">
+                            </div>
+                            <div class="filter-controls">
+                                <select id="categoryFilter" class="form-select">
+                                    <option value="all">All Categories</option>
+                                    <option value="owner">Owner-Occupied</option>
+                                    <option value="renter">Renter-Occupied</option>
+                                    <option value="investor">Investor</option>
+                                </select>
+                                <button id="resetFiltersBtn" class="btn btn-outline"><i class="fas fa-sync-alt"></i> Reset Filters</button>
+                            </div>
+                        </div>
+
+                        <div class="table-container csv-preview">
+                            <table id="dataTable" class="table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Category</th>
+                                        <th>Owner Name</th>
+                                        <th>Property Address</th>
+                                        <th>Mailing Address</th>
+                                        <th>Parsed Name</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody">
+                                    <!-- Data will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for Help -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>CSV Processor Help</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h3>Uploading CSV Files</h3>
+                <p>The CSV processor accepts property data in CSV format. You can either drag and drop your file or click to browse.</p>
+                
+                <h3>Automatic Processing</h3>
+                <p>After uploading, your data will be automatically processed with:</p>
+                <ul>
+                    <li>Property categorization (owner-occupied, renter-occupied, investor)</li>
+                    <li>Name parsing for personalized letters</li>
+                    <li>Data cleaning and normalization</li>
+                </ul>
+                
+                <h3>Understanding Categories</h3>
+                <ul>
+                    <li><strong class="category-owner">Owner-Occupied</strong>: Property address matches mailing address</li>
+                    <li><strong class="category-renter">Renter-Occupied</strong>: Property address differs from mailing address</li>
+                    <li><strong class="category-investor">Investor</strong>: Entity owns multiple properties or has business indicators</li>
+                </ul>
+                
+                <h3>Using the Results</h3>
+                <p>After processing, you can:</p>
+                <ul>
+                    <li>Filter data by category</li>
+                    <li>Search for specific properties</li>
+                    <li>Download the processed results</li>
+                    <li>Generate letters based on the processed data</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_URL = 'http://localhost:3006';
+        let currentFileId = null;
+        let processedData = null;
+        
+        // DOM Elements
+        const uploadContainer = document.getElementById('uploadContainer');
+        const csvFileInput = document.getElementById('csvFileInput');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = uploadProgress.querySelector('.progress-bar');
+        const uploadError = document.getElementById('uploadError');
+        const processingSection = document.getElementById('processingSection');
+        const processingSpinner = document.getElementById('processingSpinner');
+        const statsContainer = document.getElementById('statsContainer');
+        const totalCount = document.getElementById('totalCount');
+        const ownerCount = document.getElementById('ownerCount');
+        const renterCount = document.getElementById('renterCount');
+        const investorCount = document.getElementById('investorCount');
+        const tableBody = document.getElementById('tableBody');
+        const searchInput = document.getElementById('searchInput');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+        const downloadResultsBtn = document.getElementById('downloadResultsBtn');
+        
+        // Check API Status
+        async function checkApiStatus() {
+            const statusElement = document.getElementById('apiStatus');
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    statusElement.textContent = 'Online';
+                    statusElement.className = 'status-indicator online';
+                } else {
+                    statusElement.textContent = 'Error';
+                    statusElement.className = 'status-indicator error';
+                }
+            } catch (error) {
+                statusElement.textContent = 'Offline';
+                statusElement.className = 'status-indicator offline';
+            }
+        }
+        
+        // Theme Toggle
+        function initThemeToggle() {
+            const themeSwitch = document.getElementById('themeSwitch');
+            
+            // Check for saved theme preference or respect OS preference
+            const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const savedTheme = localStorage.getItem('theme');
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDarkMode)) {
+                document.body.classList.add('dark-mode');
+                themeSwitch.checked = true;
+            }
+            
+            // Toggle theme when switch changes
+            themeSwitch.addEventListener('change', function() {
+                if (this.checked) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+        }
+        
+        // Sidebar Toggle for Mobile
+        function initSidebarToggle() {
+            const toggleBtn = document.getElementById('toggleSidebar');
+            const sidebar = document.querySelector('.sidebar');
+            
+            toggleBtn.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+            });
+        }
+        
+        // Modal Controls
+        function initModals() {
+            // Help Modal
+            const helpModal = document.getElementById('helpModal');
+            const helpBtn = document.getElementById('helpBtn');
+            const closeBtn = helpModal.querySelector('.close');
+            
+            helpBtn.addEventListener('click', function() {
+                helpModal.style.display = 'block';
+            });
+            
+            closeBtn.addEventListener('click', function() {
+                helpModal.style.display = 'none';
+            });
+            
+            window.addEventListener('click', function(event) {
+                if (event.target === helpModal) {
+                    helpModal.style.display = 'none';
+                }
+            });
+        }
+        
+        // Handle File Upload via Drag & Drop
+        function initFileUpload() {
+            // Click to browse
+            uploadContainer.addEventListener('click', () => {
+                csvFileInput.click();
+            });
+            
+            // Handle file selection
+            csvFileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    uploadFile(e.target.files[0]);
+                }
+            });
+            
+            // Drag & Drop
+            uploadContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadContainer.classList.add('dragover');
+            });
+            
+            uploadContainer.addEventListener('dragleave', () => {
+                uploadContainer.classList.remove('dragover');
+            });
+            
+            uploadContainer.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadContainer.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.name.endsWith('.csv')) {
+                        uploadFile(file);
+                    } else {
+                        showError('Please upload a CSV file');
+                    }
+                }
+            });
+        }
+        
+        // Upload File to API
+        async function uploadFile(file) {
+            // Reset any previous errors
+            uploadError.style.display = 'none';
+            
+            // Show progress
+            uploadProgress.style.display = 'block';
+            progressBar.style.width = '0%';
+            
+            // Create FormData
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const xhr = new XMLHttpRequest();
+                
+                // Track upload progress
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percentComplete + '%';
+                    }
+                };
+                
+                // Handle completion
+                xhr.onload = async () => {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        currentFileId = response.file_id;
+                        
+                        // Hide upload section and show processing section
+                        processingSection.style.display = 'block';
+                        processingSpinner.style.display = 'block';
+                        
+                        // Fetch processed data
+                        await fetchProcessedData(currentFileId);
+                    } else {
+                        showError('Error uploading file: ' + xhr.statusText);
+                    }
+                };
+                
+                // Handle errors
+                xhr.onerror = () => {
+                    showError('Network error occurred during upload');
+                };
+                
+                // Send the request
+                xhr.open('POST', `${API_URL}/upload`, true);
+                xhr.send(formData);
+                
+            } catch (error) {
+                showError('Error uploading file: ' + error.message);
+            }
+        }
+        
+        // Fetch Processed Data
+        async function fetchProcessedData(fileId) {
+            try {
+                const response = await fetch(`${API_URL}/processed/${fileId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                
+                processedData = await response.json();
+                
+                // Update statistics
+                updateStats(processedData.stats);
+                
+                // Display data table
+                displayDataTable(processedData.data);
+                
+                // Hide spinner and show results
+                processingSpinner.style.display = 'none';
+                statsContainer.style.display = 'grid';
+                
+                // Save fileId to localStorage for use in letter generator
+                localStorage.setItem('lastProcessedFileId', fileId);
+                
+            } catch (error) {
+                showError('Error fetching processed data: ' + error.message);
+                processingSpinner.style.display = 'none';
+            }
+        }
+        
+        // Update Statistics
+        function updateStats(stats) {
+            totalCount.textContent = stats.total;
+            ownerCount.textContent = stats.owner_occupied;
+            renterCount.textContent = stats.renter_occupied;
+            investorCount.textContent = stats.investor;
+        }
+        
+        // Display Data Table
+        function displayDataTable(data, filter = 'all', searchTerm = '') {
+            // Clear existing rows
+            tableBody.innerHTML = '';
+            
+            // Filter and search data
+            const filteredData = data.filter(item => {
+                // Apply category filter
+                const categoryMatch = filter === 'all' || item.category === filter;
+                
+                // Apply search term
+                let searchMatch = true;
+                if (searchTerm) {
+                    searchTerm = searchTerm.toLowerCase();
+                    const searchableFields = [
+                        item.name_parsed.original,
+                        getPropertyAddress(item.data),
+                        getMailingAddress(item.data)
+                    ];
+                    
+                    searchMatch = searchableFields.some(field => 
+                        field && field.toLowerCase().includes(searchTerm)
+                    );
+                }
+                
+                return categoryMatch && searchMatch;
+            });
+            
+            // Create table rows
+            filteredData.forEach((item, index) => {
+                const row = document.createElement('tr');
+                
+                // Apply category color
+                row.className = `category-${item.category}-row`;
+                
+                // Create cells
+                const idCell = document.createElement('td');
+                idCell.textContent = index + 1;
+                
+                const categoryCell = document.createElement('td');
+                const categorySpan = document.createElement('span');
+                categorySpan.className = `category-cell category-${item.category}`;
+                
+                switch (item.category) {
+                    case 'owner':
+                        categorySpan.textContent = 'Owner';
+                        break;
+                    case 'renter':
+                        categorySpan.textContent = 'Renter';
+                        break;
+                    case 'investor':
+                        categorySpan.textContent = 'Investor';
+                        break;
+                    default:
+                        categorySpan.textContent = 'Unknown';
+                }
+                
+                categoryCell.appendChild(categorySpan);
+                
+                const nameCell = document.createElement('td');
+                nameCell.textContent = item.name_parsed.original || 'N/A';
+                
+                const propertyAddressCell = document.createElement('td');
+                propertyAddressCell.textContent = getPropertyAddress(item.data) || 'N/A';
+                
+                const mailingAddressCell = document.createElement('td');
+                mailingAddressCell.textContent = getMailingAddress(item.data) || 'N/A';
+                
+                const parsedNameCell = document.createElement('td');
+                if (item.name_parsed.is_business) {
+                    parsedNameCell.textContent = `Business: ${item.name_parsed.last_name}`;
+                } else {
+                    parsedNameCell.textContent = `${item.name_parsed.first_name} ${item.name_parsed.last_name}`.trim() || 'N/A';
+                }
+                
+                // Append cells to row
+                row.appendChild(idCell);
+                row.appendChild(categoryCell);
+                row.appendChild(nameCell);
+                row.appendChild(propertyAddressCell);
+                row.appendChild(mailingAddressCell);
+                row.appendChild(parsedNameCell);
+                
+                // Append row to table
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Helper function to get property address from various column names
+        function getPropertyAddress(data) {
+            const propertyAddressCols = [
+                'property_address', 'property_addr', 'situs_address', 'site_address', 
+                'address', 'prop_address'
+            ];
+            
+            for (const col of propertyAddressCols) {
+                if (data[col]) {
+                    return data[col];
+                }
+            }
+            
+            return '';
+        }
+        
+        // Helper function to get mailing address from various column names
+        function getMailingAddress(data) {
+            const mailingAddressCols = [
+                'mailing_address', 'mail_address', 'owner_address', 'taxpayer_address',
+                'tax_address', 'mail_addr'
+            ];
+            
+            for (const col of mailingAddressCols) {
+                if (data[col]) {
+                    return data[col];
+                }
+            }
+            
+            return '';
+        }
+        
+        // Show Error Message
+        function showError(message) {
+            uploadError.textContent = message;
+            uploadError.style.display = 'block';
+            uploadProgress.style.display = 'none';
+        }
+        
+        // Initialize Filters
+        function initFilters() {
+            // Search input
+            searchInput.addEventListener('input', () => {
+                if (processedData) {
+                    displayDataTable(
+                        processedData.data, 
+                        categoryFilter.value, 
+                        searchInput.value
+                    );
+                }
+            });
+            
+            // Category filter
+            categoryFilter.addEventListener('change', () => {
+                if (processedData) {
+                    displayDataTable(
+                        processedData.data, 
+                        categoryFilter.value, 
+                        searchInput.value
+                    );
+                }
+            });
+            
+            // Reset filters
+            resetFiltersBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                categoryFilter.value = 'all';
+                
+                if (processedData) {
+                    displayDataTable(processedData.data, 'all', '');
+                }
+            });
+        }
+        
+        // Download Results
+        function initDownload() {
+            downloadResultsBtn.addEventListener('click', () => {
+                if (!processedData) return;
+                
+                // Create a JSON string
+                const dataStr = JSON.stringify(processedData, null, 2);
+                
+                // Create a download link
+                const blob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `property_data_${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 0);
+            });
+        }
+        
+        // Initialize all functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            checkApiStatus();
+            initThemeToggle();
+            initSidebarToggle();
+            initModals();
+            initFileUpload();
+            initFilters();
+            initDownload();
+            
+            // Check for previously processed file
+            const lastFileId = localStorage.getItem('lastProcessedFileId');
+            if (lastFileId) {
+                currentFileId = lastFileId;
+                processingSection.style.display = 'block';
+                processingSpinner.style.display = 'block';
+                fetchProcessedData(lastFileId);
+            }
+            
+            // Periodically check API status
+            setInterval(checkApiStatus, 30000); // Every 30 seconds
+        });
+    </script>
+</body>
+</html> 

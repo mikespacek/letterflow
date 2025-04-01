@@ -1,0 +1,7 @@
+{
+  "id": "absentee-template-001",
+  "name": "Absentee Owner Property Letter",
+  "category": "absentee",
+  "content": "Dear {{first_name}},\n\nMy name is [Your Name] with [Your Company], and I'm writing regarding your property at {{property_address}}.\n\nAs a local real estate professional, I specialize in working with property owners who reside outside of the area where their properties are located. Managing a property from a distance can present unique challenges, from tenant issues to maintenance concerns.\n\nI'm reaching out to offer my services, which could range from discussing a potential purchase of your property to providing market insights about the current real estate landscape in the area.\n\nSome of the benefits I can offer include:\n\n• A straightforward purchase process with flexible terms\n• Market analysis to help you understand the current value of your property\n• Local expertise and knowledge of the neighborhood trends\n• Solutions for any property management challenges you might be experiencing\n\nWhether you're considering selling now or simply want to discuss options for the future, I'm available to answer your questions and provide information that could be valuable to you as an out-of-area property owner.\n\nPlease feel free to contact me at [Your Phone Number] or [Your Email] at your convenience. I'd be happy to schedule a call to discuss your specific situation.\n\nBest regards,\n[Your Name]\n[Your Company]",
+  "created_at": "2023-05-01T12:06:00Z"
+} 
